@@ -1,50 +1,48 @@
 {
-  "version": 2,
-  "framework": "vite",
-  "buildCommand": "npm run build",
-  "outputDirectory": "dist",
-  "installCommand": "npm install",
-  "env": {
-    "VITE_API_URL": "https://khetsetu.onrender.com/api",
-    "VITE_GEMINI_API_KEY": "AIzaSyD7QXWH3PwuzW_vo_jm8eLPRRLdRz895fA"
-  },
-  "build": {
+    "version": 2,
+    "framework": "vite",
+    "buildCommand": "npm run build",
+    "outputDirectory": "dist",
+    "installCommand": "npm install",
     "env": {
-      "VITE_API_URL": "https://khetsetu.onrender.com/api",
-      "VITE_GEMINI_API_KEY": "AIzaSyD7QXWH3PwuzW_vo_jm8eLPRRLdRz895fA"
-    }
-  },
-  "rewrites": [
-    {
-      "source": "/(.*)",
-      "destination": "/index.html"
-    }
-  ],
-  "headers": [
-    {
-      "source": "/(.*)",
-      "headers": [
-        {
-          "key": "X-Frame-Options",
-          "value": "DENY"
-        },
-        {
-          "key": "X-Content-Type-Options",
-          "value": "nosniff"
-        },
-        {
-          "key": "X-XSS-Protection",
-          "value": "1; mode=block"
-        },
-        {
-          "key": "Referrer-Policy",
-          "value": "strict-origin-when-cross-origin"
-        },
-        {
-          "key": "Permissions-Policy",
-          "value": "camera=(), microphone=(), geolocation=()"
+        "VITE_API_URL": "https://khetsetu.onrender.com/api"
+    },
+    "build": {
+        "env": {
+            "VITE_API_URL": "https://khetsetu.onrender.com/api"
         }
-      ]
-    }
-  ]
+    },
+    "rewrites": [
+        {
+            "source": "/(.*)",
+            "destination": "/index.html"
+        }
+    ],
+    "headers": [
+        {
+            "source": "/(.*)",
+            "headers": [
+                {
+                    "key": "X-Frame-Options",
+                    "value": "DENY"
+                },
+                {
+                    "key": "X-Content-Type-Options",
+                    "value": "nosniff"
+                },
+                {
+                    "key": "X-XSS-Protection",
+                    "value": "1; mode=block"
+                },
+                {
+                    "key": "Referrer-Policy",
+                    "value": "strict-origin-when-cross-origin"
+                },
+                {
+                    "key": "Permissions-Policy",
+                    "value": "camera=(), microphone=(), geolocation=()"
+                }
+            ]
+        }
+    ]
 }

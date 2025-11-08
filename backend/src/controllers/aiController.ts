@@ -1,17 +1,17 @@
-import { Request, Response } from 'express';
-import { validationResult } from 'express-validator';
-import { GoogleGenerativeAI } from '@google/generative-ai';
-import { logger } from '../config/logger';
-import CropAdvisory, { ICropRecommendation } from '../models/CropAdvisory';
-import User from '../models/User';
-import Farm from '../models/Farm';
+import { Request, Response } from "express";
+import { validationResult } from "express-validator";
+import { GoogleGenerativeAI } from "@google/generative-ai";
+import { logger } from "../config/logger";
+import CropAdvisory, { ICropRecommendation } from "../models/CropAdvisory";
+import User from "../models/User";
+import Farm from "../models/Farm";
 
 // Initialize Gemini AI
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || '');
+const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || "");
 
 // Enhanced prompt templates for different AI services
 const PROMPT_TEMPLATES = {
-  cropAdvisory: `You are an expert agricultural advisor with deep knowledge of Indian farming practices, crop science, and market conditions.
+    cropAdvisory: `You are an expert agricultural advisor with deep knowledge of Indian farming practices, crop science, and market conditions.
 
   Farmer Details:
   - Location: {location}
@@ -73,7 +73,7 @@ const PROMPT_TEMPLATES = {
 
   Provide 3-5 crop recommendations suitable for the given conditions. Consider local climate, market demand, profitability, and risk factors.`,
 
-  chatbot: `You are KhetSetu AI Assistant, a knowledgeable agricultural expert specializing in Indian farming practices. You provide helpful, accurate, and practical advice to farmers.
+    chatbot: `You are KhetSetu AI Assistant, a knowledgeable agricultural expert specializing in Indian farming practices. You provide helpful, accurate, and practical advice to farmers.
 
   Guidelines:
   - Always be supportive and encouraging
@@ -91,7 +91,7 @@ const PROMPT_TEMPLATES = {
 
   Please provide a helpful response in the user's preferred language ({language}).`,
 
-  pestIdentification: `You are an expert entomologist and plant pathologist specializing in Indian agriculture.
+    pestIdentification: `You are an expert entomologist and plant pathologist specializing in Indian agriculture.
 
   Based on the following description and image (if provided):
   Crop: {crop}
@@ -128,7 +128,7 @@ const PROMPT_TEMPLATES = {
     "timeToRecover": "string"
   }`,
 
-  soilAnalysis: `You are a soil scientist expert in Indian agricultural soils.
+    soilAnalysis: `You are a soil scientist expert in Indian agricultural soils.
 
   Based on the soil test data:
   pH: {ph}
@@ -173,617 +173,688 @@ const PROMPT_TEMPLATES = {
       "limitations": ["string"],
       "improvements": ["string"]
     }
-  }`
+  }`,
 };
 
 // Chat with AI assistant
 export const chat = async (req: Request, res: Response) => {
-  try {
-    const errors = validationResult(req);
-    if (!errors.isEmpty()) {
-      return res.status(400).json({
-        success: false,
-        message: 'Validation failed',
-        errors: errors.array()
-      });
+    try {
+        const errors = validationResult(req);
+        if (!errors.isEmpty()) {
+            return res.status(400).json({
+                success: false,
+                message: "Validation failed",
+                errors: errors.array(),
+            });
+        }
+
+        const { message, context = {}, conversationHistory = [] } = req.body;
+        const user = req.user;
+
+        if (!user) {
+            return res.status(401).json({
+                success: false,
+                message: "Authentication required",
+                error: "NOT_AUTHENTICATED",
+            });
+        }
+
+        // Check if Gemini API key is configured
+        if (!process.env.GEMINI_API_KEY) {
+            logger.error("GEMINI_API_KEY is not configured");
+            return res.status(500).json({
+                success: false,
+                message: "AI service is not configured",
+                error: "AI_SERVICE_NOT_CONFIGURED",
+            });
+        }
+
+        // Prepare user context
+        const userContext = {
+            name: user.name,
+            location: user.profile?.location,
+            farmSize: user.profile?.farmSize,
+            experience: user.profile?.farmingExperience,
+            preferredLanguage: user.profile?.preferredLanguage || "en",
+            primaryCrops: user.profile?.primaryCrops || [],
+        };
+
+        // Format conversation history
+        const formattedHistory = conversationHistory
+            .slice(-5) // Keep last 5 exchanges
+            .map(
+                (item: any) =>
+                    `User: ${item.user}\nAssistant: ${item.assistant}`,
+            )
+            .join("\n\n");
+
+        // Create prompt
+        const prompt = PROMPT_TEMPLATES.chatbot
+            .replace("{userContext}", JSON.stringify(userContext))
+            .replace("{conversationHistory}", formattedHistory)
+            .replace("{question}", message)
+            .replace(
+                "{language}",
+                userContext.preferredLanguage === "hi" ? "Hindi" : "English",
+            );
+
+        logger.info(`Starting AI chat for user ${user.email}`);
+        const startTime = Date.now();
+
+        // Call Gemini AI
+        const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
+        logger.info("Calling Gemini API with model: gemini-2.0-flash");
+
+        const result = await model.generateContent(prompt);
+        const response = await result.response;
+        const text = response.text();
+
+        const processingTime = Date.now() - startTime;
+
+        logger.info(
+            `AI Chat completed for user ${user.email} in ${processingTime}ms`,
+        );
+
+        res.json({
+            success: true,
+            message: "AI response generated successfully",
+            data: {
+                response: text,
+                processingTime,
+                model: "gemini-2.0-flash",
+                timestamp: new Date().toISOString(),
+            },
+        });
+    } catch (error: any) {
+        logger.error("AI Chat error details:", {
+            message: error.message,
+            stack: error.stack,
+            name: error.name,
+            response: error.response?.data || error.response,
+        });
+
+        // Check for specific error types
+        if (error.message?.includes("API key")) {
+            return res.status(500).json({
+                success: false,
+                message: "AI service authentication failed",
+                error: "AI_AUTH_ERROR",
+            });
+        }
+
+        if (
+            error.message?.includes("quota") ||
+            error.message?.includes("rate limit")
+        ) {
+            return res.status(429).json({
+                success: false,
+                message: "AI service rate limit exceeded",
+                error: "AI_RATE_LIMIT",
+            });
+        }
+
+        res.status(500).json({
+            success: false,
+            message: "Failed to generate AI response",
+            error: "AI_CHAT_ERROR",
+            details:
+                process.env.NODE_ENV === "development"
+                    ? error.message
+                    : undefined,
+        });
     }
-
-    const { message, context = {}, conversationHistory = [] } = req.body;
-    const user = req.user;
-
-    if (!user) {
-      return res.status(401).json({
-        success: false,
-        message: 'Authentication required',
-        error: 'NOT_AUTHENTICATED'
-      });
-    }
-
-    // Prepare user context
-    const userContext = {
-      name: user.name,
-      location: user.profile?.location,
-      farmSize: user.profile?.farmSize,
-      experience: user.profile?.farmingExperience,
-      preferredLanguage: user.profile?.preferredLanguage || 'en',
-      primaryCrops: user.profile?.primaryCrops || []
-    };
-
-    // Format conversation history
-    const formattedHistory = conversationHistory
-      .slice(-5) // Keep last 5 exchanges
-      .map((item: any) => `User: ${item.user}\nAssistant: ${item.assistant}`)
-      .join('\n\n');
-
-    // Create prompt
-    const prompt = PROMPT_TEMPLATES.chatbot
-      .replace('{userContext}', JSON.stringify(userContext))
-      .replace('{conversationHistory}', formattedHistory)
-      .replace('{question}', message)
-      .replace('{language}', userContext.preferredLanguage === 'hi' ? 'Hindi' : 'English');
-
-    const startTime = Date.now();
-
-    // Call Gemini AI
-    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
-    const result = await model.generateContent(prompt);
-    const response = await result.response;
-    const text = response.text();
-
-    const processingTime = Date.now() - startTime;
-
-    logger.info(`AI Chat completed for user ${user.email} in ${processingTime}ms`);
-
-    res.json({
-      success: true,
-      message: 'AI response generated successfully',
-      data: {
-        response: text,
-        processingTime,
-        model: 'gemini-1.5-flash',
-        timestamp: new Date().toISOString()
-      }
-    });
-
-  } catch (error) {
-    logger.error('AI Chat error:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Failed to generate AI response',
-      error: 'AI_CHAT_ERROR'
-    });
-  }
 };
 
 // Get crop advice with detailed recommendations
 export const getCropAdvice = async (req: Request, res: Response) => {
-  try {
-    const errors = validationResult(req);
-    if (!errors.isEmpty()) {
-      return res.status(400).json({
-        success: false,
-        message: 'Validation failed',
-        errors: errors.array()
-      });
-    }
-
-    const {
-      budget,
-      farmSize,
-      soilType,
-      location,
-      season,
-      experience,
-      farmingMethod,
-      waterAvailability,
-      laborAvailability,
-      constraints = {}
-    } = req.body;
-
-    const user = req.user;
-    if (!user) {
-      return res.status(401).json({
-        success: false,
-        message: 'Authentication required',
-        error: 'NOT_AUTHENTICATED'
-      });
-    }
-
-    // Create detailed prompt
-    const prompt = PROMPT_TEMPLATES.cropAdvisory
-      .replace('{location}', `${location.district}, ${location.state}`)
-      .replace('{farmSize}', farmSize.toString())
-      .replace('{soilType}', soilType)
-      .replace('{budget}', budget.toString())
-      .replace('{season}', season)
-      .replace('{experience}', experience)
-      .replace('{farmingMethod}', farmingMethod)
-      .replace('{waterAvailability}', waterAvailability || 'moderate')
-      .replace('{laborAvailability}', laborAvailability || 'moderate');
-
-    const startTime = Date.now();
-
-    // Call Gemini AI
-    const model = genAI.getGenerativeModel({
-      model: "gemini-1.5-flash",
-      generationConfig: {
-        temperature: 0.2,
-        topK: 40,
-        topP: 0.95,
-        maxOutputTokens: 2048,
-      }
-    });
-
-    const result = await model.generateContent(prompt);
-    const response = await result.response;
-    const text = response.text();
-
-    const processingTime = Date.now() - startTime;
-
-    // Try to parse JSON response
-    let parsedResponse;
     try {
-      // Clean the response text to extract JSON
-      const jsonMatch = text.match(/\{[\s\S]*\}/);
-      if (jsonMatch) {
-        parsedResponse = JSON.parse(jsonMatch[0]);
-      } else {
-        throw new Error('No JSON found in response');
-      }
-    } catch (parseError) {
-      logger.warn('Failed to parse AI response as JSON, returning raw text');
-      parsedResponse = {
-        recommendations: [],
-        generalAdvice: text,
-        seasonalTips: [],
-        marketInsights: ''
-      };
+        const errors = validationResult(req);
+        if (!errors.isEmpty()) {
+            return res.status(400).json({
+                success: false,
+                message: "Validation failed",
+                errors: errors.array(),
+            });
+        }
+
+        const {
+            budget,
+            farmSize,
+            soilType,
+            location,
+            season,
+            experience,
+            farmingMethod,
+            waterAvailability,
+            laborAvailability,
+            constraints = {},
+        } = req.body;
+
+        const user = req.user;
+        if (!user) {
+            return res.status(401).json({
+                success: false,
+                message: "Authentication required",
+                error: "NOT_AUTHENTICATED",
+            });
+        }
+
+        // Create detailed prompt
+        const prompt = PROMPT_TEMPLATES.cropAdvisory
+            .replace("{location}", `${location.district}, ${location.state}`)
+            .replace("{farmSize}", farmSize.toString())
+            .replace("{soilType}", soilType)
+            .replace("{budget}", budget.toString())
+            .replace("{season}", season)
+            .replace("{experience}", experience)
+            .replace("{farmingMethod}", farmingMethod)
+            .replace("{waterAvailability}", waterAvailability || "moderate")
+            .replace("{laborAvailability}", laborAvailability || "moderate");
+
+        const startTime = Date.now();
+
+        // Call Gemini AI
+        const model = genAI.getGenerativeModel({
+            model: "gemini-2.0-flash",
+            generationConfig: {
+                temperature: 0.2,
+                topK: 40,
+                topP: 0.95,
+                maxOutputTokens: 2048,
+            },
+        });
+
+        const result = await model.generateContent(prompt);
+        const response = await result.response;
+        const text = response.text();
+
+        const processingTime = Date.now() - startTime;
+
+        // Try to parse JSON response
+        let parsedResponse;
+        try {
+            // Clean the response text to extract JSON
+            const jsonMatch = text.match(/\{[\s\S]*\}/);
+            if (jsonMatch) {
+                parsedResponse = JSON.parse(jsonMatch[0]);
+            } else {
+                throw new Error("No JSON found in response");
+            }
+        } catch (parseError) {
+            logger.warn(
+                "Failed to parse AI response as JSON, returning raw text",
+            );
+            parsedResponse = {
+                recommendations: [],
+                generalAdvice: text,
+                seasonalTips: [],
+                marketInsights: "",
+            };
+        }
+
+        // Save crop advisory to database
+        const advisoryData = {
+            user: user._id,
+            requestDetails: {
+                budget,
+                farmSize,
+                soilType,
+                location,
+                season,
+                experience,
+                farmingMethod,
+                constraints,
+            },
+            recommendations: parsedResponse.recommendations || [],
+            aiResponse: {
+                model: "gemini-2.0-flash",
+                prompt,
+                rawResponse: text,
+                processingTime,
+                confidence: 85, // Default confidence
+                version: "1.0.0",
+            },
+        };
+
+        const savedAdvisory = await CropAdvisory.create(advisoryData);
+
+        logger.info(
+            `Crop advisory generated for user ${user.email} in ${processingTime}ms`,
+        );
+
+        res.json({
+            success: true,
+            message: "Crop recommendations generated successfully",
+            data: {
+                advisory: savedAdvisory,
+                recommendations: parsedResponse.recommendations,
+                generalAdvice: parsedResponse.generalAdvice,
+                seasonalTips: parsedResponse.seasonalTips,
+                marketInsights: parsedResponse.marketInsights,
+                processingTime,
+            },
+        });
+    } catch (error) {
+        logger.error("Crop advice error:", error);
+        res.status(500).json({
+            success: false,
+            message: "Failed to generate crop recommendations",
+            error: "CROP_ADVICE_ERROR",
+        });
     }
-
-    // Save crop advisory to database
-    const advisoryData = {
-      user: user._id,
-      requestDetails: {
-        budget,
-        farmSize,
-        soilType,
-        location,
-        season,
-        experience,
-        farmingMethod,
-        constraints
-      },
-      recommendations: parsedResponse.recommendations || [],
-      aiResponse: {
-        model: 'gemini-1.5-flash',
-        prompt,
-        rawResponse: text,
-        processingTime,
-        confidence: 85, // Default confidence
-        version: '1.0.0'
-      }
-    };
-
-    const savedAdvisory = await CropAdvisory.create(advisoryData);
-
-    logger.info(`Crop advisory generated for user ${user.email} in ${processingTime}ms`);
-
-    res.json({
-      success: true,
-      message: 'Crop recommendations generated successfully',
-      data: {
-        advisory: savedAdvisory,
-        recommendations: parsedResponse.recommendations,
-        generalAdvice: parsedResponse.generalAdvice,
-        seasonalTips: parsedResponse.seasonalTips,
-        marketInsights: parsedResponse.marketInsights,
-        processingTime
-      }
-    });
-
-  } catch (error) {
-    logger.error('Crop advice error:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Failed to generate crop recommendations',
-      error: 'CROP_ADVICE_ERROR'
-    });
-  }
 };
 
 // Pest identification and treatment recommendations
 export const identifyPest = async (req: Request, res: Response) => {
-  try {
-    const errors = validationResult(req);
-    if (!errors.isEmpty()) {
-      return res.status(400).json({
-        success: false,
-        message: 'Validation failed',
-        errors: errors.array()
-      });
-    }
-
-    const {
-      crop,
-      symptoms,
-      location,
-      season,
-      imageData,
-      imageDescription
-    } = req.body;
-
-    const user = req.user;
-    if (!user) {
-      return res.status(401).json({
-        success: false,
-        message: 'Authentication required',
-        error: 'NOT_AUTHENTICATED'
-      });
-    }
-
-    // Create prompt for pest identification
-    const prompt = PROMPT_TEMPLATES.pestIdentification
-      .replace('{crop}', crop)
-      .replace('{symptoms}', symptoms)
-      .replace('{location}', `${location.district}, ${location.state}`)
-      .replace('{season}', season)
-      .replace('{imageAnalysis}', imageDescription || 'No image provided');
-
-    const startTime = Date.now();
-
-    // Call Gemini AI
-    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
-
-    let result;
-    if (imageData) {
-      // If image is provided, use vision capabilities
-      const imagePart = {
-        inlineData: {
-          data: imageData,
-          mimeType: "image/jpeg"
-        }
-      };
-      result = await model.generateContent([prompt, imagePart]);
-    } else {
-      result = await model.generateContent(prompt);
-    }
-
-    const response = await result.response;
-    const text = response.text();
-
-    const processingTime = Date.now() - startTime;
-
-    // Parse response
-    let parsedResponse;
     try {
-      const jsonMatch = text.match(/\{[\s\S]*\}/);
-      if (jsonMatch) {
-        parsedResponse = JSON.parse(jsonMatch[0]);
-      } else {
-        throw new Error('No JSON found in response');
-      }
-    } catch (parseError) {
-      parsedResponse = {
-        identification: {
-          name: 'Unknown pest/disease',
-          confidence: 50
-        },
-        treatment: {
-          immediate: ['Consult local agricultural expert'],
-          organic: [],
-          chemical: [],
-          preventive: []
-        },
-        severity: 'medium',
-        rawResponse: text
-      };
+        const errors = validationResult(req);
+        if (!errors.isEmpty()) {
+            return res.status(400).json({
+                success: false,
+                message: "Validation failed",
+                errors: errors.array(),
+            });
+        }
+
+        const {
+            crop,
+            symptoms,
+            location,
+            season,
+            imageData,
+            imageDescription,
+        } = req.body;
+
+        const user = req.user;
+        if (!user) {
+            return res.status(401).json({
+                success: false,
+                message: "Authentication required",
+                error: "NOT_AUTHENTICATED",
+            });
+        }
+
+        // Create prompt for pest identification
+        const prompt = PROMPT_TEMPLATES.pestIdentification
+            .replace("{crop}", crop)
+            .replace("{symptoms}", symptoms)
+            .replace("{location}", `${location.district}, ${location.state}`)
+            .replace("{season}", season)
+            .replace(
+                "{imageAnalysis}",
+                imageDescription || "No image provided",
+            );
+
+        const startTime = Date.now();
+
+        // Call Gemini AI
+        const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
+
+        let result;
+        if (imageData) {
+            // If image is provided, use vision capabilities
+            const imagePart = {
+                inlineData: {
+                    data: imageData,
+                    mimeType: "image/jpeg",
+                },
+            };
+            result = await model.generateContent([prompt, imagePart]);
+        } else {
+            result = await model.generateContent(prompt);
+        }
+
+        const response = await result.response;
+        const text = response.text();
+
+        const processingTime = Date.now() - startTime;
+
+        // Parse response
+        let parsedResponse;
+        try {
+            const jsonMatch = text.match(/\{[\s\S]*\}/);
+            if (jsonMatch) {
+                parsedResponse = JSON.parse(jsonMatch[0]);
+            } else {
+                throw new Error("No JSON found in response");
+            }
+        } catch (parseError) {
+            parsedResponse = {
+                identification: {
+                    name: "Unknown pest/disease",
+                    confidence: 50,
+                },
+                treatment: {
+                    immediate: ["Consult local agricultural expert"],
+                    organic: [],
+                    chemical: [],
+                    preventive: [],
+                },
+                severity: "medium",
+                rawResponse: text,
+            };
+        }
+
+        logger.info(
+            `Pest identification completed for user ${user.email} in ${processingTime}ms`,
+        );
+
+        res.json({
+            success: true,
+            message: "Pest identification completed successfully",
+            data: {
+                identification: parsedResponse.identification,
+                treatment: parsedResponse.treatment,
+                severity: parsedResponse.severity,
+                estimatedCost: parsedResponse.estimatedCost,
+                timeToRecover: parsedResponse.timeToRecover,
+                processingTime,
+                confidence: parsedResponse.identification?.confidence || 50,
+            },
+        });
+    } catch (error) {
+        logger.error("Pest identification error:", error);
+        res.status(500).json({
+            success: false,
+            message: "Failed to identify pest",
+            error: "PEST_IDENTIFICATION_ERROR",
+        });
     }
-
-    logger.info(`Pest identification completed for user ${user.email} in ${processingTime}ms`);
-
-    res.json({
-      success: true,
-      message: 'Pest identification completed successfully',
-      data: {
-        identification: parsedResponse.identification,
-        treatment: parsedResponse.treatment,
-        severity: parsedResponse.severity,
-        estimatedCost: parsedResponse.estimatedCost,
-        timeToRecover: parsedResponse.timeToRecover,
-        processingTime,
-        confidence: parsedResponse.identification?.confidence || 50
-      }
-    });
-
-  } catch (error) {
-    logger.error('Pest identification error:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Failed to identify pest',
-      error: 'PEST_IDENTIFICATION_ERROR'
-    });
-  }
 };
 
 // Soil analysis and recommendations
 export const analyzeSoil = async (req: Request, res: Response) => {
-  try {
-    const errors = validationResult(req);
-    if (!errors.isEmpty()) {
-      return res.status(400).json({
-        success: false,
-        message: 'Validation failed',
-        errors: errors.array()
-      });
-    }
-
-    const {
-      ph,
-      nitrogen,
-      phosphorus,
-      potassium,
-      organicMatter,
-      soilType,
-      location,
-      intendedCrop
-    } = req.body;
-
-    const user = req.user;
-    if (!user) {
-      return res.status(401).json({
-        success: false,
-        message: 'Authentication required',
-        error: 'NOT_AUTHENTICATED'
-      });
-    }
-
-    // Create prompt for soil analysis
-    const prompt = PROMPT_TEMPLATES.soilAnalysis
-      .replace('{ph}', ph?.toString() || 'Not provided')
-      .replace('{nitrogen}', nitrogen?.toString() || 'Not provided')
-      .replace('{phosphorus}', phosphorus?.toString() || 'Not provided')
-      .replace('{potassium}', potassium?.toString() || 'Not provided')
-      .replace('{organicMatter}', organicMatter?.toString() || 'Not provided')
-      .replace('{location}', `${location.district}, ${location.state}`)
-      .replace('{soilType}', soilType)
-      .replace('{intendedCrop}', intendedCrop || 'General farming');
-
-    const startTime = Date.now();
-
-    // Call Gemini AI
-    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
-    const result = await model.generateContent(prompt);
-    const response = await result.response;
-    const text = response.text();
-
-    const processingTime = Date.now() - startTime;
-
-    // Parse response
-    let parsedResponse;
     try {
-      const jsonMatch = text.match(/\{[\s\S]*\}/);
-      if (jsonMatch) {
-        parsedResponse = JSON.parse(jsonMatch[0]);
-      } else {
-        throw new Error('No JSON found in response');
-      }
-    } catch (parseError) {
-      parsedResponse = {
-        analysis: {
-          overall: 'fair',
-          ph: { status: 'Analysis needed', recommendation: text.substring(0, 200) }
-        },
-        recommendations: {
-          fertilizers: [],
-          amendments: [],
-          practices: []
-        },
-        rawResponse: text
-      };
-    }
-
-    logger.info(`Soil analysis completed for user ${user.email} in ${processingTime}ms`);
-
-    res.json({
-      success: true,
-      message: 'Soil analysis completed successfully',
-      data: {
-        analysis: parsedResponse.analysis,
-        recommendations: parsedResponse.recommendations,
-        suitability: parsedResponse.suitability,
-        processingTime,
-        testData: {
-          ph,
-          nitrogen,
-          phosphorus,
-          potassium,
-          organicMatter,
-          soilType
+        const errors = validationResult(req);
+        if (!errors.isEmpty()) {
+            return res.status(400).json({
+                success: false,
+                message: "Validation failed",
+                errors: errors.array(),
+            });
         }
-      }
-    });
 
-  } catch (error) {
-    logger.error('Soil analysis error:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Failed to analyze soil',
-      error: 'SOIL_ANALYSIS_ERROR'
-    });
-  }
+        const {
+            ph,
+            nitrogen,
+            phosphorus,
+            potassium,
+            organicMatter,
+            soilType,
+            location,
+            intendedCrop,
+        } = req.body;
+
+        const user = req.user;
+        if (!user) {
+            return res.status(401).json({
+                success: false,
+                message: "Authentication required",
+                error: "NOT_AUTHENTICATED",
+            });
+        }
+
+        // Create prompt for soil analysis
+        const prompt = PROMPT_TEMPLATES.soilAnalysis
+            .replace("{ph}", ph?.toString() || "Not provided")
+            .replace("{nitrogen}", nitrogen?.toString() || "Not provided")
+            .replace("{phosphorus}", phosphorus?.toString() || "Not provided")
+            .replace("{potassium}", potassium?.toString() || "Not provided")
+            .replace(
+                "{organicMatter}",
+                organicMatter?.toString() || "Not provided",
+            )
+            .replace("{location}", `${location.district}, ${location.state}`)
+            .replace("{soilType}", soilType)
+            .replace("{intendedCrop}", intendedCrop || "General farming");
+
+        const startTime = Date.now();
+
+        // Call Gemini AI
+        const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
+        const result = await model.generateContent(prompt);
+        const response = await result.response;
+        const text = response.text();
+
+        const processingTime = Date.now() - startTime;
+
+        // Parse response
+        let parsedResponse;
+        try {
+            const jsonMatch = text.match(/\{[\s\S]*\}/);
+            if (jsonMatch) {
+                parsedResponse = JSON.parse(jsonMatch[0]);
+            } else {
+                throw new Error("No JSON found in response");
+            }
+        } catch (parseError) {
+            parsedResponse = {
+                analysis: {
+                    overall: "fair",
+                    ph: {
+                        status: "Analysis needed",
+                        recommendation: text.substring(0, 200),
+                    },
+                },
+                recommendations: {
+                    fertilizers: [],
+                    amendments: [],
+                    practices: [],
+                },
+                rawResponse: text,
+            };
+        }
+
+        logger.info(
+            `Soil analysis completed for user ${user.email} in ${processingTime}ms`,
+        );
+
+        res.json({
+            success: true,
+            message: "Soil analysis completed successfully",
+            data: {
+                analysis: parsedResponse.analysis,
+                recommendations: parsedResponse.recommendations,
+                suitability: parsedResponse.suitability,
+                processingTime,
+                testData: {
+                    ph,
+                    nitrogen,
+                    phosphorus,
+                    potassium,
+                    organicMatter,
+                    soilType,
+                },
+            },
+        });
+    } catch (error) {
+        logger.error("Soil analysis error:", error);
+        res.status(500).json({
+            success: false,
+            message: "Failed to analyze soil",
+            error: "SOIL_ANALYSIS_ERROR",
+        });
+    }
 };
 
 // Get AI model status and capabilities
 export const getAIStatus = async (req: Request, res: Response) => {
-  try {
-    const user = req.user;
-    if (!user) {
-      return res.status(401).json({
-        success: false,
-        message: 'Authentication required',
-        error: 'NOT_AUTHENTICATED'
-      });
-    }
-
-    // Check if API key is configured
-    const isConfigured = !!process.env.GEMINI_API_KEY;
-
-    // Get user's recent AI usage
-    const recentUsage = await CropAdvisory.countDocuments({
-      user: user._id,
-      createdAt: { $gte: new Date(Date.now() - 24 * 60 * 60 * 1000) } // Last 24 hours
-    });
-
-    res.json({
-      success: true,
-      message: 'AI status retrieved successfully',
-      data: {
-        status: isConfigured ? 'active' : 'misconfigured',
-        model: 'gemini-1.5-flash',
-        capabilities: [
-          'crop_advisory',
-          'pest_identification',
-          'soil_analysis',
-          'general_chat',
-          'image_analysis'
-        ],
-        dailyUsage: recentUsage,
-        maxDailyUsage: user.subscription?.plan === 'premium' ? 100 :
-                       user.subscription?.plan === 'basic' ? 50 : 10,
-        features: {
-          imageAnalysis: true,
-          multiLanguage: true,
-          contextualAdvice: true,
-          marketInsights: true
+    try {
+        const user = req.user;
+        if (!user) {
+            return res.status(401).json({
+                success: false,
+                message: "Authentication required",
+                error: "NOT_AUTHENTICATED",
+            });
         }
-      }
-    });
 
-  } catch (error) {
-    logger.error('AI status error:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Failed to get AI status',
-      error: 'AI_STATUS_ERROR'
-    });
-  }
+        // Check if API key is configured
+        const isConfigured = !!process.env.GEMINI_API_KEY;
+
+        // Get user's recent AI usage
+        const recentUsage = await CropAdvisory.countDocuments({
+            user: user._id,
+            createdAt: { $gte: new Date(Date.now() - 24 * 60 * 60 * 1000) }, // Last 24 hours
+        });
+
+        res.json({
+            success: true,
+            message: "AI status retrieved successfully",
+            data: {
+                status: isConfigured ? "active" : "misconfigured",
+                model: "gemini-2.0-flash",
+                capabilities: [
+                    "crop_advisory",
+                    "pest_identification",
+                    "soil_analysis",
+                    "general_chat",
+                    "image_analysis",
+                ],
+                dailyUsage: recentUsage,
+                maxDailyUsage:
+                    user.subscription?.plan === "premium"
+                        ? 100
+                        : user.subscription?.plan === "basic"
+                          ? 50
+                          : 10,
+                features: {
+                    imageAnalysis: true,
+                    multiLanguage: true,
+                    contextualAdvice: true,
+                    marketInsights: true,
+                },
+            },
+        });
+    } catch (error) {
+        logger.error("AI status error:", error);
+        res.status(500).json({
+            success: false,
+            message: "Failed to get AI status",
+            error: "AI_STATUS_ERROR",
+        });
+    }
 };
 
 // Generate farming calendar based on crop recommendations
 export const generateFarmingCalendar = async (req: Request, res: Response) => {
-  try {
-    const { advisoryId, selectedCrops } = req.body;
-    const user = req.user;
+    try {
+        const { advisoryId, selectedCrops } = req.body;
+        const user = req.user;
 
-    if (!user) {
-      return res.status(401).json({
-        success: false,
-        message: 'Authentication required',
-        error: 'NOT_AUTHENTICATED'
-      });
-    }
-
-    // Get the crop advisory
-    const advisory = await CropAdvisory.findById(advisoryId);
-    if (!advisory || advisory.user.toString() !== user._id.toString()) {
-      return res.status(404).json({
-        success: false,
-        message: 'Crop advisory not found',
-        error: 'ADVISORY_NOT_FOUND'
-      });
-    }
-
-    // Filter recommendations for selected crops
-    const selectedRecommendations = advisory.recommendations.filter(
-      rec => selectedCrops.includes(rec.crop)
-    );
-
-    if (selectedRecommendations.length === 0) {
-      return res.status(400).json({
-        success: false,
-        message: 'No valid crop recommendations found for selected crops',
-        error: 'NO_RECOMMENDATIONS'
-      });
-    }
-
-    // Generate detailed farming calendar
-    const calendar = selectedRecommendations.map(rec => {
-      const activities = [];
-      const sowingDate = new Date(rec.timeline.sowingStart);
-      const harvestDate = new Date(rec.timeline.harvestStart);
-
-      // Generate weekly activities
-      for (let week = 0; week < 16; week++) {
-        const activityDate = new Date(sowingDate);
-        activityDate.setDate(activityDate.getDate() + (week * 7));
-
-        if (activityDate > harvestDate) break;
-
-        let activity = '';
-        let icon = '';
-
-        if (week === 0) {
-          activity = `Land preparation and sowing of ${rec.crop}`;
-          icon = '🌱';
-        } else if (week <= 2) {
-          activity = `Irrigation and monitoring seedling growth`;
-          icon = '💧';
-        } else if (week <= 4) {
-          activity = `First fertilizer application`;
-          icon = '🌿';
-        } else if (week <= 8) {
-          activity = `Regular watering and pest monitoring`;
-          icon = '🔍';
-        } else if (week <= 12) {
-          activity = `Flowering stage care and second fertilizer application`;
-          icon = '🌸';
-        } else {
-          activity = `Pre-harvest preparations`;
-          icon = '🌾';
+        if (!user) {
+            return res.status(401).json({
+                success: false,
+                message: "Authentication required",
+                error: "NOT_AUTHENTICATED",
+            });
         }
 
-        activities.push({
-          week: week + 1,
-          date: activityDate.toISOString().split('T')[0],
-          activity,
-          icon,
-          crop: rec.crop,
-          priority: week <= 2 || week >= 12 ? 'high' : 'medium'
+        // Get the crop advisory
+        const advisory = await CropAdvisory.findById(advisoryId);
+        if (!advisory || advisory.user.toString() !== user._id.toString()) {
+            return res.status(404).json({
+                success: false,
+                message: "Crop advisory not found",
+                error: "ADVISORY_NOT_FOUND",
+            });
+        }
+
+        // Filter recommendations for selected crops
+        const selectedRecommendations = advisory.recommendations.filter((rec) =>
+            selectedCrops.includes(rec.crop),
+        );
+
+        if (selectedRecommendations.length === 0) {
+            return res.status(400).json({
+                success: false,
+                message:
+                    "No valid crop recommendations found for selected crops",
+                error: "NO_RECOMMENDATIONS",
+            });
+        }
+
+        // Generate detailed farming calendar
+        const calendar = selectedRecommendations.map((rec) => {
+            const activities = [];
+            const sowingDate = new Date(rec.timeline.sowingStart);
+            const harvestDate = new Date(rec.timeline.harvestStart);
+
+            // Generate weekly activities
+            for (let week = 0; week < 16; week++) {
+                const activityDate = new Date(sowingDate);
+                activityDate.setDate(activityDate.getDate() + week * 7);
+
+                if (activityDate > harvestDate) break;
+
+                let activity = "";
+                let icon = "";
+
+                if (week === 0) {
+                    activity = `Land preparation and sowing of ${rec.crop}`;
+                    icon = "🌱";
+                } else if (week <= 2) {
+                    activity = `Irrigation and monitoring seedling growth`;
+                    icon = "💧";
+                } else if (week <= 4) {
+                    activity = `First fertilizer application`;
+                    icon = "🌿";
+                } else if (week <= 8) {
+                    activity = `Regular watering and pest monitoring`;
+                    icon = "🔍";
+                } else if (week <= 12) {
+                    activity = `Flowering stage care and second fertilizer application`;
+                    icon = "🌸";
+                } else {
+                    activity = `Pre-harvest preparations`;
+                    icon = "🌾";
+                }
+
+                activities.push({
+                    week: week + 1,
+                    date: activityDate.toISOString().split("T")[0],
+                    activity,
+                    icon,
+                    crop: rec.crop,
+                    priority: week <= 2 || week >= 12 ? "high" : "medium",
+                });
+            }
+
+            return {
+                crop: rec.crop,
+                variety: rec.variety,
+                timeline: rec.timeline,
+                activities,
+            };
         });
-      }
 
-      return {
-        crop: rec.crop,
-        variety: rec.variety,
-        timeline: rec.timeline,
-        activities
-      };
-    });
-
-    res.json({
-      success: true,
-      message: 'Farming calendar generated successfully',
-      data: {
-        calendar,
-        summary: {
-          totalCrops: selectedRecommendations.length,
-          totalWeeks: 16,
-          startDate: Math.min(...selectedRecommendations.map(r =>
-            new Date(r.timeline.sowingStart).getTime()
-          )),
-          endDate: Math.max(...selectedRecommendations.map(r =>
-            new Date(r.timeline.harvestEnd).getTime()
-          ))
-        }
-      }
-    });
-
-  } catch (error) {
-    logger.error('Generate farming calendar error:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Failed to generate farming calendar',
-      error: 'CALENDAR_GENERATION_ERROR'
-    });
-  }
+        res.json({
+            success: true,
+            message: "Farming calendar generated successfully",
+            data: {
+                calendar,
+                summary: {
+                    totalCrops: selectedRecommendations.length,
+                    totalWeeks: 16,
+                    startDate: Math.min(
+                        ...selectedRecommendations.map((r) =>
+                            new Date(r.timeline.sowingStart).getTime(),
+                        ),
+                    ),
+                    endDate: Math.max(
+                        ...selectedRecommendations.map((r) =>
+                            new Date(r.timeline.harvestEnd).getTime(),
+                        ),
+                    ),
+                },
+            },
+        });
+    } catch (error) {
+        logger.error("Generate farming calendar error:", error);
+        res.status(500).json({
+            success: false,
+            message: "Failed to generate farming calendar",
+            error: "CALENDAR_GENERATION_ERROR",
+        });
+    }
 };
