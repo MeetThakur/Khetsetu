@@ -1797,9 +1797,9 @@ const CropAdvisory: React.FC = () => {
     return (
         <div className="min-h-screen bg-gray-50 dark:bg-dark-900 transition-colors duration-200">
             {/* Header */}
-            <div className="bg-white dark:bg-dark-800 border-b border-gray-200 dark:border-dark-700 sticky top-0 z-10 transition-colors duration-200">
-                <div className="max-w-7xl mx-auto px-2 sm:px-4 lg:px-8">
-                    <div className="flex items-center justify-between h-14 sm:h-16">
+            <div className="sticky top-0 z-20 transition-colors duration-200 pt-2 sm:pt-4 px-2 sm:px-4">
+                <div className="max-w-5xl mx-auto bg-white dark:bg-dark-800 border border-gray-200 dark:border-dark-700 rounded-xl shadow-sm px-4 sm:px-6 lg:px-8">
+                    <div className="flex items-center justify-between h-16">
                         <div className="flex items-center space-x-2 sm:space-x-4 min-w-0 flex-1">
                             <div className="p-1.5 sm:p-2 bg-green-100 dark:bg-green-900/50 rounded-lg transition-colors duration-200 flex-shrink-0">
                                 <Leaf
@@ -1832,8 +1832,8 @@ const CropAdvisory: React.FC = () => {
             </div>
 
             {/* Navigation - Centered Pill Tabs */}
-            <div className="bg-white dark:bg-dark-800 border-b border-gray-200 dark:border-dark-700 transition-colors duration-200 sticky top-14 z-10 shadow-sm">
-                <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-3">
+            <div className="sticky top-20 z-10 transition-colors duration-200 px-2 sm:px-4 pt-2">
+                <div className="max-w-5xl mx-auto bg-white dark:bg-dark-800 border border-gray-200 dark:border-dark-700 rounded-xl shadow-sm px-2 sm:px-4 py-2">
                     <div className="flex p-1 space-x-1 bg-gray-100 dark:bg-dark-700 rounded-xl">
                         {tabs.map((tab) => {
                             const Icon = tab.icon;
@@ -1857,7 +1857,7 @@ const CropAdvisory: React.FC = () => {
             </div>
 
             {/* Content */}
-            <div className="max-w-7xl mx-auto px-2 sm:px-4 lg:px-8 py-4 sm:py-8">
+            <div className="max-w-5xl mx-auto px-2 sm:px-4 lg:px-8 py-4 sm:py-8">
                 {activeTab === "quick" && QuickAdvisoryTab()}
                 {activeTab === "calendar" && FasalCalendarTab()}
             </div>
