@@ -33,20 +33,22 @@ const Navigation: React.FC<NavigationProps> = ({
                                     onClick={() => onTabChange(item.id)}
                                     className={`
                     flex items-center space-x-1 sm:space-x-2 px-2 sm:px-4 py-2 rounded-md text-xs sm:text-sm font-medium transition-all duration-200 whitespace-nowrap
-                    ${isActive
-                                            ? "bg-white dark:bg-dark-600 text-slate-900 dark:text-white shadow-sm"
-                                            : "text-gray-600 dark:text-dark-300 hover:text-gray-900 dark:hover:text-white hover:bg-white/50 dark:hover:bg-dark-600/50"
-                                        }
+                    ${
+                        isActive
+                            ? "bg-white dark:bg-dark-600 text-slate-900 dark:text-white shadow-sm"
+                            : "text-gray-600 dark:text-dark-300 hover:text-gray-900 dark:hover:text-white hover:bg-white/50 dark:hover:bg-dark-600/50"
+                    }
                   `}
                                 >
                                     <Icon
                                         size={16}
                                         className={`
                       sm:w-4 sm:h-4 flex-shrink-0
-                      ${isActive
-                                                ? "text-slate-700 dark:text-dark-200"
-                                                : "text-gray-500 dark:text-dark-400"
-                                            }
+                      ${
+                          isActive
+                              ? "text-slate-700 dark:text-dark-200"
+                              : "text-gray-500 dark:text-dark-400"
+                      }
                     `}
                                     />
                                     <span className="hidden xs:inline sm:inline text-xs sm:text-sm truncate">

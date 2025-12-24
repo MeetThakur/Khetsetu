@@ -67,32 +67,32 @@ const AppContent: React.FC = () => {
     };
 
     return (
-        <div className="min-h-screen bg-gray-50 dark:bg-dark-900 transition-colors duration-200">
-            {/* Minimal Header */}
-            <header className="bg-white dark:bg-dark-800 border-b border-gray-200 dark:border-dark-700 transition-colors duration-200">
-                <div className="max-w-7xl mx-auto px-2 sm:px-4 lg:px-8">
-                    <div className="flex items-center justify-between h-14 sm:h-16">
-                        <div className="flex items-center space-x-2 sm:space-x-3 min-w-0">
-                            <div className="w-7 h-7 sm:w-8 sm:h-8 bg-slate-900 dark:bg-green-600 rounded-md flex items-center justify-center transition-colors duration-200 flex-shrink-0">
-                                <Leaf className="w-4 h-4 sm:w-5 sm:h-5 text-white" />
+        <div className="min-h-screen bg-gradient-to-br from-gray-50 via-gray-50 to-gray-100 dark:from-dark-900 dark:via-dark-900 dark:to-dark-800 transition-colors duration-200">
+            {/* Enhanced Header */}
+            <header className="bg-white dark:bg-dark-800 border-b border-gray-200 dark:border-dark-700 shadow-sm backdrop-blur-sm bg-opacity-95 dark:bg-opacity-95 sticky top-0 z-50 transition-all duration-200">
+                <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8">
+                    <div className="flex items-center justify-between h-16 sm:h-18">
+                        <div className="flex items-center space-x-3 sm:space-x-4 min-w-0">
+                            <div className="w-9 h-9 sm:w-10 sm:h-10 bg-gradient-to-br from-green-600 to-green-700 dark:from-green-500 dark:to-green-600 rounded-xl flex items-center justify-center shadow-lg shadow-green-500/20 transition-all duration-200 flex-shrink-0 hover:shadow-xl hover:scale-105">
+                                <Leaf className="w-5 h-5 sm:w-6 sm:h-6 text-white" />
                             </div>
                             <div className="min-w-0 flex-1">
-                                <h1 className="text-base sm:text-lg font-semibold text-gray-900 dark:text-white transition-colors duration-200 truncate">
+                                <h1 className="text-lg sm:text-xl font-bold bg-gradient-to-r from-gray-900 to-gray-700 dark:from-white dark:to-gray-300 bg-clip-text text-transparent transition-colors duration-200 truncate">
                                     {t("header.title")}
                                 </h1>
-                                <p className="text-xs text-gray-500 dark:text-dark-400 transition-colors duration-200 hidden xs:block truncate">
+                                <p className="text-xs sm:text-sm text-gray-500 dark:text-dark-400 transition-colors duration-200 hidden xs:block truncate">
                                     {t("header.subtitle")}
                                 </p>
                             </div>
                         </div>
-                        <div className="flex items-center space-x-1 sm:space-x-2 flex-shrink-0">
+                        <div className="flex items-center space-x-2 sm:space-x-3 flex-shrink-0">
                             <button
                                 onClick={() =>
                                     setLanguage(language === "en" ? "hi" : "en")
                                 }
-                                className="flex items-center px-2 sm:px-3 py-1.5 text-xs sm:text-sm text-gray-600 dark:text-dark-300 hover:text-gray-900 dark:hover:text-white border border-gray-300 dark:border-dark-600 rounded-md hover:border-gray-400 dark:hover:border-dark-500 transition-colors duration-200"
+                                className="flex items-center px-2.5 sm:px-4 py-2 text-xs sm:text-sm font-medium text-gray-700 dark:text-dark-300 hover:text-gray-900 dark:hover:text-white bg-gray-100 dark:bg-dark-700 hover:bg-gray-200 dark:hover:bg-dark-600 rounded-lg transition-all duration-200 shadow-sm hover:shadow"
                             >
-                                <Globe className="w-3 h-3 sm:w-4 sm:h-4 sm:mr-2" />
+                                <Globe className="w-3.5 h-3.5 sm:w-4 sm:h-4 sm:mr-2" />
                                 <span className="hidden sm:inline">
                                     {language === "en" ? "हिंदी" : "English"}
                                 </span>
@@ -107,13 +107,13 @@ const AppContent: React.FC = () => {
                             {/* User Profile Button */}
                             <button
                                 onClick={() => setIsProfileOpen(true)}
-                                className="flex items-center px-2 sm:px-3 py-1.5 text-xs sm:text-sm text-gray-600 dark:text-dark-300 hover:text-gray-900 dark:hover:text-white border border-gray-300 dark:border-dark-600 rounded-md hover:border-gray-400 dark:hover:border-dark-500 transition-colors duration-200"
+                                className="flex items-center px-2.5 sm:px-4 py-2 text-xs sm:text-sm font-medium text-white bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800 dark:from-green-500 dark:to-green-600 dark:hover:from-green-600 dark:hover:to-green-700 rounded-lg transition-all duration-200 shadow-md hover:shadow-lg hover:scale-105"
                             >
-                                <User className="w-3 h-3 sm:w-4 sm:h-4 sm:mr-2" />
-                                <span className="hidden sm:inline truncate max-w-20">
+                                <User className="w-3.5 h-3.5 sm:w-4 sm:h-4 sm:mr-2" />
+                                <span className="hidden sm:inline truncate max-w-24">
                                     {state.user?.name || "Profile"}
                                 </span>
-                                <span className="sm:hidden">Demo</span>
+                                <span className="sm:hidden">Me</span>
                             </button>
                         </div>
                     </div>
@@ -126,8 +126,8 @@ const AppContent: React.FC = () => {
                 onTabChange={(tab) => setActiveTab(tab as ActiveTab)}
             />
 
-            <main className="max-w-7xl mx-auto px-2 sm:px-4 lg:px-8 py-4 sm:py-8">
-                {renderActiveComponent()}
+            <main className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 py-6 sm:py-10">
+                <div className="animate-fadeIn">{renderActiveComponent()}</div>
             </main>
 
             {/* AI Chatbot */}

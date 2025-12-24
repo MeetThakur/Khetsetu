@@ -1807,20 +1807,20 @@ const CropAdvisory: React.FC = () => {
     );
 
     return (
-        <div className="min-h-screen bg-gray-50 dark:bg-dark-900 transition-colors duration-200">
+        <div className="min-h-screen bg-gradient-to-br from-gray-50 via-gray-50 to-gray-100 dark:from-dark-900 dark:via-dark-900 dark:to-dark-800 transition-colors duration-200">
             {/* Header */}
-            <div className="bg-white dark:bg-dark-800 border border-gray-200 dark:border-dark-700 rounded-lg sm:rounded-xl mx-2 sm:mx-4 lg:mx-8 mt-4 sm:mt-6 shadow-sm transition-colors duration-200">
-                <div className="max-w-7xl mx-auto px-2 sm:px-4 lg:px-8">
-                    <div className="flex items-center justify-between h-14 sm:h-16">
-                        <div className="flex items-center space-x-2 sm:space-x-4 min-w-0 flex-1">
-                            <div className="p-1.5 sm:p-2 bg-green-100 dark:bg-green-900/50 rounded-lg transition-colors duration-200 flex-shrink-0">
+            <div className="bg-white dark:bg-dark-800 border border-gray-200 dark:border-dark-700 rounded-xl shadow-md hover:shadow-lg transition-all duration-300 mx-3 sm:mx-6 lg:mx-8 mt-6 sm:mt-8">
+                <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                    <div className="flex items-center justify-between h-16 sm:h-20">
+                        <div className="flex items-center space-x-3 sm:space-x-4 min-w-0 flex-1">
+                            <div className="p-2 sm:p-2.5 bg-gradient-to-br from-green-100 to-green-200 dark:from-green-900/50 dark:to-green-800/50 rounded-xl shadow-sm transition-all duration-300 flex-shrink-0">
                                 <Leaf
                                     className="text-green-600 dark:text-green-400"
-                                    size={20}
+                                    size={24}
                                 />
                             </div>
                             <div className="min-w-0 flex-1">
-                                <h1 className="text-base sm:text-xl font-bold text-gray-900 dark:text-white transition-colors duration-200 truncate">
+                                <h1 className="text-lg sm:text-2xl font-bold bg-gradient-to-r from-gray-900 to-gray-700 dark:from-white dark:to-gray-300 bg-clip-text text-transparent transition-colors duration-200 truncate">
                                     Smart Crop Advisory
                                 </h1>
                                 <p className="text-xs sm:text-sm text-gray-600 dark:text-dark-300 transition-colors duration-200 hidden xs:block truncate">
@@ -1828,11 +1828,11 @@ const CropAdvisory: React.FC = () => {
                                 </p>
                             </div>
                         </div>
-                        <div className="flex items-center space-x-1 sm:space-x-3 flex-shrink-0">
-                            <button className="p-1.5 sm:p-2 text-gray-600 dark:text-dark-300 hover:text-gray-800 dark:hover:text-white border border-gray-300 dark:border-dark-600 rounded-lg transition-colors duration-200 hidden sm:block">
-                                <Users size={16} />
+                        <div className="flex items-center space-x-2 sm:space-x-3 flex-shrink-0">
+                            <button className="p-2 text-gray-600 dark:text-dark-300 hover:text-gray-900 dark:hover:text-white bg-gray-100 dark:bg-dark-700 hover:bg-gray-200 dark:hover:bg-dark-600 rounded-lg transition-all duration-200 hidden sm:block shadow-sm hover:shadow">
+                                <Users size={18} />
                             </button>
-                            <button className="px-2 sm:px-4 py-1.5 sm:py-2 bg-green-600 dark:bg-green-500 text-white rounded-lg hover:bg-green-700 dark:hover:bg-green-600 text-xs sm:text-sm font-medium transition-colors duration-200">
+                            <button className="px-3 sm:px-5 py-2 sm:py-2.5 bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800 dark:from-green-500 dark:to-green-600 dark:hover:from-green-600 dark:hover:to-green-700 text-white rounded-lg text-xs sm:text-sm font-semibold transition-all duration-300 shadow-md hover:shadow-lg hover:scale-105">
                                 <span className="hidden sm:inline">
                                     Save Session
                                 </span>
@@ -1844,9 +1844,9 @@ const CropAdvisory: React.FC = () => {
             </div>
 
             {/* Navigation - Centered Pill Tabs */}
-            <div className="bg-white dark:bg-dark-800 border border-gray-200 dark:border-dark-700 rounded-lg sm:rounded-xl mx-2 sm:mx-4 lg:mx-8 mt-4 transition-colors duration-200 shadow-sm">
-                <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-3">
-                    <div className="flex p-1 space-x-1 bg-gray-100 dark:bg-dark-700 rounded-xl">
+            <div className="bg-white dark:bg-dark-800 border border-gray-200 dark:border-dark-700 rounded-xl shadow-md hover:shadow-lg transition-all duration-300 mx-3 sm:mx-6 lg:mx-8 mt-4 sm:mt-6">
+                <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
+                    <div className="flex p-1.5 space-x-2 bg-gray-100 dark:bg-dark-700 rounded-xl">
                         {tabs.map((tab) => {
                             const Icon = tab.icon;
                             const isActive = activeTab === tab.id;
@@ -1856,10 +1856,10 @@ const CropAdvisory: React.FC = () => {
                                     onClick={() =>
                                         setActiveTab(tab.id as TabType)
                                     }
-                                    className={`flex-1 flex items-center justify-center space-x-2 py-2.5 text-sm font-medium rounded-lg transition-all duration-200 ${
+                                    className={`flex-1 flex items-center justify-center space-x-2 py-3 text-sm font-semibold rounded-xl transition-all duration-300 ${
                                         isActive
-                                            ? "bg-white dark:bg-dark-600 text-green-700 dark:text-green-300 shadow-sm ring-1 ring-black/5 dark:ring-white/10"
-                                            : "text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white hover:bg-gray-50 dark:hover:bg-dark-600/50"
+                                            ? "bg-gradient-to-r from-white to-gray-50 dark:from-dark-600 dark:to-dark-500 text-green-700 dark:text-green-300 shadow-md hover:shadow-lg scale-105"
+                                            : "text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white hover:bg-gray-50 dark:hover:bg-dark-600/50 hover:scale-102"
                                     }`}
                                 >
                                     <Icon
@@ -1879,7 +1879,7 @@ const CropAdvisory: React.FC = () => {
             </div>
 
             {/* Content */}
-            <div className="max-w-7xl mx-auto px-2 sm:px-4 lg:px-8 py-4 sm:py-8">
+            <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 py-6 sm:py-10">
                 {activeTab === "quick" && QuickAdvisoryTab()}
                 {activeTab === "calendar" && FasalCalendarTab()}
             </div>

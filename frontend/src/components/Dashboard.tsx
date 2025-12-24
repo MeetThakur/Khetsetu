@@ -267,110 +267,108 @@ const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
     return (
         <div className="space-y-8">
             {/* Welcome Header */}
-            <div className="text-center">
-                <h1 className="text-2xl font-semibold text-gray-900 dark:text-white mb-2 transition-colors duration-200">
-                    Welcome back, {user?.name || "Farmer"}!
+            <div className="text-center mb-2">
+                <h1 className="text-3xl sm:text-4xl font-bold bg-gradient-to-r from-gray-900 via-gray-800 to-gray-900 dark:from-white dark:via-gray-200 dark:to-white bg-clip-text text-transparent mb-3 transition-colors duration-200">
+                    Welcome back, {user?.name || "Farmer"}! 👋
                 </h1>
-                <p className="text-gray-600 dark:text-dark-300 transition-colors duration-200">
-                    Your Smart Farming Dashboard
+                <p className="text-base sm:text-lg text-gray-600 dark:text-dark-300 transition-colors duration-200">
+                    Here's what's happening on your farm today
                 </p>
             </div>
 
             {/* Stats Grid */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                <div className="minimal-card p-6 bg-white dark:bg-dark-800 border border-gray-200 dark:border-dark-700 transition-colors duration-200">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
+                <div className="group bg-white dark:bg-dark-800 border border-gray-200 dark:border-dark-700 rounded-xl p-6 shadow-sm hover:shadow-lg transition-all duration-300 hover:scale-105 hover:border-green-300 dark:hover:border-green-700">
                     <div className="flex items-center justify-between">
-                        <div>
-                            <p className="text-sm font-medium text-gray-600 dark:text-dark-300">
+                        <div className="flex-1">
+                            <p className="text-sm font-medium text-gray-600 dark:text-dark-300 mb-1">
                                 Current Season
                             </p>
-                            <p className="text-2xl font-semibold text-gray-900 dark:text-white">
+                            <p className="text-2xl font-bold text-gray-900 dark:text-white mb-1">
                                 {dashboardData.currentSeason}
                             </p>
-                            <p className="text-xs text-gray-500 dark:text-dark-400 mt-1">
+                            <p className="text-xs text-gray-500 dark:text-dark-400">
                                 Agricultural season
                             </p>
                         </div>
-                        <div className="p-3 bg-gray-100 dark:bg-dark-700 rounded-lg transition-colors duration-200">
+                        <div className="p-3 bg-gradient-to-br from-blue-100 to-blue-200 dark:from-blue-900/50 dark:to-blue-800/50 rounded-xl transition-all duration-300 group-hover:scale-110">
                             <Calendar
-                                className="text-gray-600 dark:text-dark-300"
+                                className="text-blue-600 dark:text-blue-400"
                                 size={24}
                             />
                         </div>
                     </div>
                 </div>
 
-                <div className="minimal-card p-6 bg-white dark:bg-dark-800 border border-gray-200 dark:border-dark-700 transition-colors duration-200">
+                <div className="group bg-white dark:bg-dark-800 border border-gray-200 dark:border-dark-700 rounded-xl p-6 shadow-sm hover:shadow-lg transition-all duration-300 hover:scale-105 hover:border-green-300 dark:hover:border-green-700">
                     <div className="flex items-center justify-between">
-                        <div>
-                            <p className="text-sm font-medium text-gray-600 dark:text-dark-300">
+                        <div className="flex-1">
+                            <p className="text-sm font-medium text-gray-600 dark:text-dark-300 mb-1">
                                 Active Crops
                             </p>
-                            <p className="text-2xl font-semibold text-gray-900 dark:text-white">
+                            <p className="text-2xl font-bold text-gray-900 dark:text-white mb-1">
                                 {dashboardData.activeCrops}
                             </p>
-                            <div className="flex items-center mt-1">
-                                <p className="text-xs text-gray-600 dark:text-dark-400">
-                                    {dashboardData.cropVariety &&
-                                    dashboardData.cropVariety.length > 0
-                                        ? `${dashboardData.cropVariety.slice(0, 2).join(", ")}${dashboardData.cropVariety.length > 2 ? "..." : ""}`
-                                        : "No crops planted"}
-                                </p>
-                            </div>
+                            <p className="text-xs text-gray-500 dark:text-dark-400">
+                                {dashboardData.cropVariety &&
+                                dashboardData.cropVariety.length > 0
+                                    ? `${dashboardData.cropVariety.slice(0, 2).join(", ")}${dashboardData.cropVariety.length > 2 ? "..." : ""}`
+                                    : "No crops planted"}
+                            </p>
                         </div>
-                        <div className="p-3 bg-gray-100 dark:bg-dark-700 rounded-lg transition-colors duration-200">
+                        <div className="p-3 bg-gradient-to-br from-green-100 to-green-200 dark:from-green-900/50 dark:to-green-800/50 rounded-xl transition-all duration-300 group-hover:scale-110">
                             <Leaf
-                                className="text-gray-600 dark:text-dark-300"
+                                className="text-green-600 dark:text-green-400"
                                 size={24}
                             />
                         </div>
                     </div>
                 </div>
 
-                <div className="minimal-card p-6 bg-white dark:bg-dark-800 border border-gray-200 dark:border-dark-700 transition-colors duration-200">
+                <div className="group bg-white dark:bg-dark-800 border border-gray-200 dark:border-dark-700 rounded-xl p-6 shadow-sm hover:shadow-lg transition-all duration-300 hover:scale-105 hover:border-orange-300 dark:hover:border-orange-700">
                     <div className="flex items-center justify-between">
-                        <div>
-                            <p className="text-sm font-medium text-gray-600 dark:text-dark-300">
+                        <div className="flex-1">
+                            <p className="text-sm font-medium text-gray-600 dark:text-dark-300 mb-1">
                                 Pest Alerts
                             </p>
-                            <p className="text-2xl font-semibold text-gray-900 dark:text-white">
+                            <p className="text-2xl font-bold text-gray-900 dark:text-white mb-1">
                                 {dashboardData.pestAlerts}
                             </p>
-                            <div className="flex items-center mt-1">
+                            <div className="flex items-center">
                                 {dashboardData.pestAlerts > 0 ? (
                                     <>
-                                        <div className="w-2 h-2 bg-orange-400 rounded-full mr-2"></div>
-                                        <p className="text-xs text-orange-600 dark:text-orange-400">
+                                        <div className="w-2 h-2 bg-orange-500 rounded-full mr-2 animate-pulse"></div>
+                                        <p className="text-xs text-orange-600 dark:text-orange-400 font-medium">
                                             Requires attention
                                         </p>
                                     </>
                                 ) : (
                                     <>
-                                        <div className="w-2 h-2 bg-green-400 rounded-full mr-2"></div>
-                                        <p className="text-xs text-green-600 dark:text-green-400">
+                                        <div className="w-2 h-2 bg-green-500 rounded-full mr-2"></div>
+                                        <p className="text-xs text-green-600 dark:text-green-400 font-medium">
                                             All clear
                                         </p>
                                     </>
                                 )}
                             </div>
                         </div>
-                        <div className="p-3 bg-gray-100 dark:bg-dark-700 rounded-lg transition-colors duration-200">
+                        <div className="p-3 bg-gradient-to-br from-orange-100 to-orange-200 dark:from-orange-900/50 dark:to-orange-800/50 rounded-xl transition-all duration-300 group-hover:scale-110">
                             <AlertTriangle
-                                className="text-gray-600 dark:text-dark-300"
+                                className="text-orange-600 dark:text-orange-400"
                                 size={24}
                             />
                         </div>
                     </div>
                 </div>
 
-                <div className="minimal-card p-6 bg-white dark:bg-dark-800 border border-gray-200 dark:border-dark-700 transition-colors duration-200">
+                <div className="group bg-white dark:bg-dark-800 border border-gray-200 dark:border-dark-700 rounded-xl p-6 shadow-sm hover:shadow-lg transition-all duration-300 hover:scale-105 hover:border-green-300 dark:hover:border-green-700">
                     <div className="flex items-center justify-between">
-                        <div>
-                            <p className="text-sm font-medium text-gray-600 dark:text-dark-300">
+                        <div className="flex-1">
+                            <p className="text-sm font-medium text-gray-600 dark:text-dark-300 mb-1">
                                 Farm Health
                             </p>
                             <p
-                                className={`text-2xl font-semibold ${getHealthColor(dashboardData.healthScore)}`}
+                                className={`text-2xl font-bold ${getHealthColor(dashboardData.healthScore)} mb-1`}
                             >
                                 {dashboardData.healthScore}%
                             </p>
@@ -573,8 +571,8 @@ const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
             </div>
 
             {/* Quick Actions & Status */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                <div className="minimal-card p-6 bg-white dark:bg-dark-800 border border-gray-200 dark:border-dark-700 transition-colors duration-200">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
+                <div className="bg-white dark:bg-dark-800 border border-gray-200 dark:border-dark-700 rounded-xl p-6 shadow-sm hover:shadow-md transition-all duration-300">
                     <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center transition-colors duration-200">
                         <Plus
                             className="text-gray-600 dark:text-dark-300 mr-2"
@@ -582,16 +580,16 @@ const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
                         />
                         Quick Actions
                     </h3>
-                    <div className="grid grid-cols-2 gap-4">
+                    <div className="grid grid-cols-2 gap-3 sm:gap-4">
                         <button
                             onClick={() => onNavigate?.("farm")}
-                            className="p-4 text-left bg-green-50 dark:bg-green-900/30 hover:bg-green-100 dark:hover:bg-green-900/50 rounded-lg transition-colors duration-200"
+                            className="group p-4 text-left bg-gradient-to-br from-green-50 to-green-100 dark:from-green-900/30 dark:to-green-800/20 hover:from-green-100 hover:to-green-200 dark:hover:from-green-900/50 dark:hover:to-green-800/40 rounded-xl transition-all duration-300 border border-green-200 dark:border-green-800 hover:shadow-lg hover:scale-105"
                         >
                             <MapIcon
-                                className="text-green-600 dark:text-green-400 mb-2"
-                                size={20}
+                                className="text-green-600 dark:text-green-400 mb-3 group-hover:scale-110 transition-transform duration-300"
+                                size={24}
                             />
-                            <p className="text-sm font-medium text-gray-900 dark:text-white">
+                            <p className="text-sm font-semibold text-gray-900 dark:text-white mb-1">
                                 View Farm
                             </p>
                             <p className="text-xs text-gray-600 dark:text-dark-300">
@@ -601,13 +599,13 @@ const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
 
                         <button
                             onClick={() => onNavigate?.("advisory")}
-                            className="p-4 text-left bg-blue-50 dark:bg-blue-900/30 hover:bg-blue-100 dark:hover:bg-blue-900/50 rounded-lg transition-colors duration-200"
+                            className="group p-4 text-left bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-900/30 dark:to-blue-800/20 hover:from-blue-100 hover:to-blue-200 dark:hover:from-blue-900/50 dark:hover:to-blue-800/40 rounded-xl transition-all duration-300 border border-blue-200 dark:border-blue-800 hover:shadow-lg hover:scale-105"
                         >
                             <Leaf
-                                className="text-blue-600 dark:text-blue-400 mb-2"
-                                size={20}
+                                className="text-blue-600 dark:text-blue-400 mb-3 group-hover:scale-110 transition-transform duration-300"
+                                size={24}
                             />
-                            <p className="text-sm font-medium text-gray-900 dark:text-white">
+                            <p className="text-sm font-semibold text-gray-900 dark:text-white mb-1">
                                 Crop Advisory
                             </p>
                             <p className="text-xs text-gray-600 dark:text-dark-300">
@@ -617,13 +615,13 @@ const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
 
                         <button
                             onClick={() => onNavigate?.("pest")}
-                            className="p-4 text-left bg-orange-50 dark:bg-orange-900/30 hover:bg-orange-100 dark:hover:bg-orange-900/50 rounded-lg transition-colors duration-200"
+                            className="group p-4 text-left bg-gradient-to-br from-orange-50 to-orange-100 dark:from-orange-900/30 dark:to-orange-800/20 hover:from-orange-100 hover:to-orange-200 dark:hover:from-orange-900/50 dark:hover:to-orange-800/40 rounded-xl transition-all duration-300 border border-orange-200 dark:border-orange-800 hover:shadow-lg hover:scale-105"
                         >
                             <AlertTriangle
-                                className="text-orange-600 dark:text-orange-400 mb-2"
-                                size={20}
+                                className="text-orange-600 dark:text-orange-400 mb-3 group-hover:scale-110 transition-transform duration-300"
+                                size={24}
                             />
-                            <p className="text-sm font-medium text-gray-900 dark:text-white">
+                            <p className="text-sm font-semibold text-gray-900 dark:text-white mb-1">
                                 Pest Watch
                             </p>
                             <p className="text-xs text-gray-600 dark:text-dark-300">
@@ -633,13 +631,13 @@ const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
 
                         <button
                             onClick={() => onNavigate?.("market")}
-                            className="p-4 text-left bg-purple-50 dark:bg-purple-900/30 hover:bg-purple-100 dark:hover:bg-purple-900/50 rounded-lg transition-colors duration-200"
+                            className="group p-4 text-left bg-gradient-to-br from-purple-50 to-purple-100 dark:from-purple-900/30 dark:to-purple-800/20 hover:from-purple-100 hover:to-purple-200 dark:hover:from-purple-900/50 dark:hover:to-purple-800/40 rounded-xl transition-all duration-300 border border-purple-200 dark:border-purple-800 hover:shadow-lg hover:scale-105"
                         >
                             <TrendingUp
-                                className="text-purple-600 dark:text-purple-400 mb-2"
-                                size={20}
+                                className="text-purple-600 dark:text-purple-400 mb-3 group-hover:scale-110 transition-transform duration-300"
+                                size={24}
                             />
-                            <p className="text-sm font-medium text-gray-900 dark:text-white">
+                            <p className="text-sm font-semibold text-gray-900 dark:text-white mb-1">
                                 Market Prices
                             </p>
                             <p className="text-xs text-gray-600 dark:text-dark-300">
