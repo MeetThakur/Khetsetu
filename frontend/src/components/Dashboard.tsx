@@ -20,7 +20,13 @@ import { useAuth } from "../contexts/AuthContext";
 import farmService, { DashboardData } from "../services/farmService";
 import weatherService from "../services/weatherService";
 
-const Dashboard: React.FC = () => {
+interface DashboardProps {
+    onNavigate?: (
+        tab: "dashboard" | "advisory" | "farm" | "pest" | "market" | "consult",
+    ) => void;
+}
+
+const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
     const { state } = useAuth();
     const user = state.user;
     const [dashboardData, setDashboardData] = useState<DashboardData | null>(
@@ -34,6 +40,28 @@ const Dashboard: React.FC = () => {
         currentRainfall: number;
     } | null>(null);
     const [weatherLoading, setWeatherLoading] = useState(true);
+
+    // Sample pest alerts to match PestWatch component
+    const samplePestAlerts = [
+        {
+            id: "1",
+            title: "Brown Planthopper Outbreak Alert",
+            severity: "Critical",
+            area: "Sector 12",
+        },
+        {
+            id: "2",
+            title: "Seasonal Aphid Activity",
+            severity: "Medium",
+            area: "Sector 8",
+        },
+        {
+            id: "3",
+            title: "Weather-Related Fungal Risk",
+            severity: "Medium",
+            area: "All Areas",
+        },
+    ];
 
     // Get user's location for weather widget
     const getUserLocation = useCallback((): string => {
@@ -57,7 +85,12 @@ const Dashboard: React.FC = () => {
             const response = await farmService.getDashboardData();
 
             if (response.success && response.data) {
-                setDashboardData(response.data);
+                // Override pestAlerts count with sample alerts for consistency with PestWatch
+                const dataWithPestAlerts = {
+                    ...response.data,
+                    pestAlerts: samplePestAlerts.length,
+                };
+                setDashboardData(dataWithPestAlerts);
             } else {
                 setError(response.message || "Failed to load dashboard data");
             }
@@ -141,7 +174,7 @@ const Dashboard: React.FC = () => {
     const handleDeleteActivity = async (
         farmId: string,
         plotNumber: number,
-        activityId: string
+        activityId: string,
     ) => {
         if (!window.confirm("Are you sure you want to remove this activity?")) {
             return;
@@ -151,7 +184,7 @@ const Dashboard: React.FC = () => {
             const response = await farmService.deletePlotActivity(
                 farmId,
                 plotNumber,
-                activityId
+                activityId,
             );
 
             if (response.success) {
@@ -161,7 +194,7 @@ const Dashboard: React.FC = () => {
                     return {
                         ...prevData,
                         recentActivities: prevData.recentActivities.filter(
-                            (activity) => activity.id !== activityId
+                            (activity) => activity.id !== activityId,
                         ),
                     };
                 });
@@ -279,14 +312,17 @@ const Dashboard: React.FC = () => {
                             <div className="flex items-center mt-1">
                                 <p className="text-xs text-gray-600 dark:text-dark-400">
                                     {dashboardData.cropVariety &&
-                                        dashboardData.cropVariety.length > 0
+                                    dashboardData.cropVariety.length > 0
                                         ? `${dashboardData.cropVariety.slice(0, 2).join(", ")}${dashboardData.cropVariety.length > 2 ? "..." : ""}`
                                         : "No crops planted"}
                                 </p>
                             </div>
                         </div>
                         <div className="p-3 bg-gray-100 dark:bg-dark-700 rounded-lg transition-colors duration-200">
-                            <Leaf className="text-gray-600 dark:text-dark-300" size={24} />
+                            <Leaf
+                                className="text-gray-600 dark:text-dark-300"
+                                size={24}
+                            />
                         </div>
                     </div>
                 </div>
@@ -350,8 +386,8 @@ const Dashboard: React.FC = () => {
                                     {dashboardData.healthScore >= 80
                                         ? "Excellent"
                                         : dashboardData.healthScore >= 60
-                                            ? "Good"
-                                            : "Needs attention"}
+                                          ? "Good"
+                                          : "Needs attention"}
                                 </p>
                             </div>
                         </div>
@@ -431,7 +467,7 @@ const Dashboard: React.FC = () => {
                     </h3>
                     <div className="space-y-3">
                         {dashboardData.recentActivities &&
-                            dashboardData.recentActivities.length > 0 ? (
+                        dashboardData.recentActivities.length > 0 ? (
                             dashboardData.recentActivities
                                 .slice(0, 5)
                                 .map((activity, index) => (
@@ -445,21 +481,32 @@ const Dashboard: React.FC = () => {
                                         <div className="flex-1">
                                             <div className="flex justify-between items-start">
                                                 <p className="text-sm font-medium text-gray-900 dark:text-white capitalize">
-                                                    {activity.type.replace("_", " ")}
+                                                    {activity.type.replace(
+                                                        "_",
+                                                        " ",
+                                                    )}
                                                 </p>
 
-                                                {activity.id && activity.farmId && (
-                                                    <button
-                                                        onClick={() => handleDeleteActivity(activity.farmId, activity.plotNumber, activity.id)}
-                                                        className="text-gray-400 hover:text-red-500 transition-colors p-1"
-                                                        title="Remove activity"
-                                                    >
-                                                        <Trash2 size={14} />
-                                                    </button>
-                                                )}
+                                                {activity.id &&
+                                                    activity.farmId && (
+                                                        <button
+                                                            onClick={() =>
+                                                                handleDeleteActivity(
+                                                                    activity.farmId,
+                                                                    activity.plotNumber,
+                                                                    activity.id,
+                                                                )
+                                                            }
+                                                            className="text-gray-400 hover:text-red-500 transition-colors p-1"
+                                                            title="Remove activity"
+                                                        >
+                                                            <Trash2 size={14} />
+                                                        </button>
+                                                    )}
                                             </div>
                                             <p className="text-xs text-gray-600 dark:text-dark-300">
-                                                {activity.farmName} - Plot {activity.plotNumber}
+                                                {activity.farmName} - Plot{" "}
+                                                {activity.plotNumber}
                                             </p>
                                             <p className="text-xs text-gray-500 dark:text-dark-400 mt-1">
                                                 {activity.description}
@@ -470,7 +517,9 @@ const Dashboard: React.FC = () => {
                                                 </p>
                                                 {activity.cost && (
                                                     <p className="text-xs text-green-600">
-                                                        {formatCurrency(activity.cost)}
+                                                        {formatCurrency(
+                                                            activity.cost,
+                                                        )}
                                                     </p>
                                                 )}
                                             </div>
@@ -484,7 +533,8 @@ const Dashboard: React.FC = () => {
                                     No recent activities
                                 </p>
                                 <p className="text-xs text-gray-400 dark:text-dark-500">
-                                    Start logging your farm activities to see them here
+                                    Start logging your farm activities to see
+                                    them here
                                 </p>
                             </div>
                         )}
@@ -493,26 +543,31 @@ const Dashboard: React.FC = () => {
 
                 <div className="minimal-card p-6 bg-white dark:bg-dark-800 border border-gray-200 dark:border-dark-700 transition-colors duration-200">
                     <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center transition-colors duration-200">
-                        <Leaf className="text-gray-600 dark:text-dark-300 mr-2" size={20} />
+                        <Leaf
+                            className="text-gray-600 dark:text-dark-300 mr-2"
+                            size={20}
+                        />
                         Recommendations
                     </h3>
                     <div className="space-y-3">
                         {dashboardData.recommendations &&
-                            dashboardData.recommendations.map((recommendation, index) => (
-                                <div
-                                    key={index}
-                                    className="flex items-start space-x-3 p-3 bg-blue-50 dark:bg-blue-900/30 rounded-lg transition-colors duration-200"
-                                >
-                                    <div className="p-1 bg-blue-100 dark:bg-blue-800/50 rounded-full mt-1 transition-colors duration-200">
-                                        <div className="w-2 h-2 bg-blue-600 dark:bg-blue-400 rounded-full"></div>
+                            dashboardData.recommendations.map(
+                                (recommendation, index) => (
+                                    <div
+                                        key={index}
+                                        className="flex items-start space-x-3 p-3 bg-blue-50 dark:bg-blue-900/30 rounded-lg transition-colors duration-200"
+                                    >
+                                        <div className="p-1 bg-blue-100 dark:bg-blue-800/50 rounded-full mt-1 transition-colors duration-200">
+                                            <div className="w-2 h-2 bg-blue-600 dark:bg-blue-400 rounded-full"></div>
+                                        </div>
+                                        <div className="flex-1">
+                                            <p className="text-sm text-gray-800 dark:text-blue-200">
+                                                {recommendation}
+                                            </p>
+                                        </div>
                                     </div>
-                                    <div className="flex-1">
-                                        <p className="text-sm text-gray-800 dark:text-blue-200">
-                                            {recommendation}
-                                        </p>
-                                    </div>
-                                </div>
-                            ))}
+                                ),
+                            )}
                     </div>
                 </div>
             </div>
@@ -521,12 +576,15 @@ const Dashboard: React.FC = () => {
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 <div className="minimal-card p-6 bg-white dark:bg-dark-800 border border-gray-200 dark:border-dark-700 transition-colors duration-200">
                     <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center transition-colors duration-200">
-                        <Plus className="text-gray-600 dark:text-dark-300 mr-2" size={20} />
+                        <Plus
+                            className="text-gray-600 dark:text-dark-300 mr-2"
+                            size={20}
+                        />
                         Quick Actions
                     </h3>
                     <div className="grid grid-cols-2 gap-4">
                         <button
-                            onClick={() => (window.location.href = "/farm-visualization")}
+                            onClick={() => onNavigate?.("farm")}
                             className="p-4 text-left bg-green-50 dark:bg-green-900/30 hover:bg-green-100 dark:hover:bg-green-900/50 rounded-lg transition-colors duration-200"
                         >
                             <MapIcon
@@ -542,7 +600,7 @@ const Dashboard: React.FC = () => {
                         </button>
 
                         <button
-                            onClick={() => (window.location.href = "/crop-advisory")}
+                            onClick={() => onNavigate?.("advisory")}
                             className="p-4 text-left bg-blue-50 dark:bg-blue-900/30 hover:bg-blue-100 dark:hover:bg-blue-900/50 rounded-lg transition-colors duration-200"
                         >
                             <Leaf
@@ -558,7 +616,7 @@ const Dashboard: React.FC = () => {
                         </button>
 
                         <button
-                            onClick={() => (window.location.href = "/pest-watch")}
+                            onClick={() => onNavigate?.("pest")}
                             className="p-4 text-left bg-orange-50 dark:bg-orange-900/30 hover:bg-orange-100 dark:hover:bg-orange-900/50 rounded-lg transition-colors duration-200"
                         >
                             <AlertTriangle
@@ -574,7 +632,7 @@ const Dashboard: React.FC = () => {
                         </button>
 
                         <button
-                            onClick={() => (window.location.href = "/market-linkage")}
+                            onClick={() => onNavigate?.("market")}
                             className="p-4 text-left bg-purple-50 dark:bg-purple-900/30 hover:bg-purple-100 dark:hover:bg-purple-900/50 rounded-lg transition-colors duration-200"
                         >
                             <TrendingUp
@@ -622,7 +680,9 @@ const Dashboard: React.FC = () => {
                                     {dashboardData.totalFarms}
                                 </p>
                                 <p className="text-xs text-gray-600 dark:text-dark-300">
-                                    {dashboardData.totalFarms === 1 ? "Farm" : "Farms"}
+                                    {dashboardData.totalFarms === 1
+                                        ? "Farm"
+                                        : "Farms"}
                                 </p>
                             </div>
                         </div>
@@ -681,7 +741,9 @@ const Dashboard: React.FC = () => {
                                         {dashboardData.pestAlerts}
                                     </p>
                                     <p className="text-xs text-orange-600 dark:text-orange-400">
-                                        {dashboardData.pestAlerts === 1 ? "Alert" : "Alerts"}
+                                        {dashboardData.pestAlerts === 1
+                                            ? "Alert"
+                                            : "Alerts"}
                                     </p>
                                 </div>
                             </div>
@@ -698,11 +760,13 @@ const Dashboard: React.FC = () => {
                         Welcome to KhetSetu!
                     </h3>
                     <p className="text-gray-600 dark:text-dark-300 mb-6 max-w-md mx-auto transition-colors duration-200">
-                        Get started by creating your first farm. Add your plots, crops, and
-                        start tracking your agricultural journey.
+                        Get started by creating your first farm. Add your plots,
+                        crops, and start tracking your agricultural journey.
                     </p>
                     <button
-                        onClick={() => (window.location.href = "/farm-visualization")}
+                        onClick={() =>
+                            (window.location.href = "/farm-visualization")
+                        }
                         className="inline-flex items-center px-6 py-3 bg-green-600 dark:bg-green-500 text-white font-medium rounded-lg hover:bg-green-700 dark:hover:bg-green-600 transition-colors duration-200"
                     >
                         <Plus className="w-5 h-5 mr-2" />
@@ -753,8 +817,8 @@ const Dashboard: React.FC = () => {
                                     {weatherLoading
                                         ? "Loading..."
                                         : weatherData
-                                            ? "Live data"
-                                            : "Weather API integration pending"}
+                                          ? "Live data"
+                                          : "Weather API integration pending"}
                                 </p>
                             </div>
                         </div>
@@ -790,8 +854,8 @@ const Dashboard: React.FC = () => {
                                     {weatherLoading
                                         ? "Loading..."
                                         : weatherData
-                                            ? "Live data"
-                                            : "Weather API integration pending"}
+                                          ? "Live data"
+                                          : "Weather API integration pending"}
                                 </p>
                             </div>
                         </div>
@@ -820,8 +884,8 @@ const Dashboard: React.FC = () => {
                                     {dashboardData.healthScore >= 80
                                         ? "Good"
                                         : dashboardData.healthScore >= 60
-                                            ? "Fair"
-                                            : "Poor"}
+                                          ? "Fair"
+                                          : "Poor"}
                                 </p>
                                 <p className="text-xs text-gray-600 dark:text-dark-300">
                                     Based on plot data

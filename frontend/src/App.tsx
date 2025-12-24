@@ -50,7 +50,7 @@ const AppContent: React.FC = () => {
     const renderActiveComponent = () => {
         switch (activeTab) {
             case "dashboard":
-                return <Dashboard />;
+                return <Dashboard onNavigate={setActiveTab} />;
             case "advisory":
                 return <CropAdvisory />;
             case "farm":
@@ -62,7 +62,7 @@ const AppContent: React.FC = () => {
             case "consult":
                 return <ExpertConsultation />;
             default:
-                return <Dashboard />;
+                return <Dashboard onNavigate={setActiveTab} />;
         }
     };
 
