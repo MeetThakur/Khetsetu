@@ -1,1356 +1,1524 @@
 import React, { useState, useEffect } from "react";
 import {
-  Map as MapIcon,
-  AlertTriangle,
-  Edit3,
-  X,
-  Lightbulb,
-  Settings,
-  Plus,
-  Grid3X3,
-  Loader2,
-  Save,
-  Droplets,
-  Leaf,
-  TrendingUp,
-  RefreshCw,
-  CheckSquare,
-  Square,
-  Users,
-  Trash2,
-  BarChart3,
-  Sprout,
-  Target,
+    Map as MapIcon,
+    AlertTriangle,
+    Edit3,
+    X,
+    Lightbulb,
+    Settings,
+    Plus,
+    Grid3X3,
+    Loader2,
+    Save,
+    Droplets,
+    Leaf,
+    TrendingUp,
+    RefreshCw,
+    CheckSquare,
+    Square,
+    Users,
+    Trash2,
+    BarChart3,
+    Sprout,
+    Target,
 } from "lucide-react";
 import { useAuth } from "../contexts/AuthContext";
 import farmService, {
-  Farm,
-  PlotData,
-  PlotActivity,
+    Farm,
+    PlotData,
+    PlotActivity,
 } from "../services/farmService";
 
 interface CropSuggestion {
-  name: string;
-  suitability: "High" | "Medium" | "Low";
-  reason: string;
-  expectedYield: string;
-  roi: string;
+    name: string;
+    suitability: "High" | "Medium" | "Low";
+    reason: string;
+    expectedYield: string;
+    roi: string;
 }
 
 interface FarmConfig {
-  totalAcres: number;
-  plotSizeAcres: number; // This will be calculated automatically
-  rows: number;
-  cols: number;
+    totalAcres: number;
+    plotSizeAcres: number; // This will be calculated automatically
+    rows: number;
+    cols: number;
 }
 
 const FarmVisualization: React.FC = () => {
-  const { state } = useAuth();
-  const user = state.user;
-  const [selectedPlot, setSelectedPlot] = useState<number | null>(null);
-  const [viewMode, setViewMode] = useState<"crops" | "health" | "moisture">(
-    "crops",
-  );
-  const [isEditing, setIsEditing] = useState(false);
-  const [editingPlot, setEditingPlot] = useState<number | null>(null);
-  const [showSuggestions, setShowSuggestions] = useState(false);
-  const [showFarmConfig, setShowFarmConfig] = useState(false);
-  const [showActivityForm, setShowActivityForm] = useState(false);
+    const { state } = useAuth();
+    const user = state.user;
+    const [selectedPlot, setSelectedPlot] = useState<number | null>(null);
+    const [viewMode, setViewMode] = useState<"crops" | "health" | "moisture">(
+        "crops",
+    );
+    const [isEditing, setIsEditing] = useState(false);
+    const [editingPlot, setEditingPlot] = useState<number | null>(null);
+    const [showSuggestions, setShowSuggestions] = useState(false);
+    const [showFarmConfig, setShowFarmConfig] = useState(false);
+    const [showActivityForm, setShowActivityForm] = useState(false);
 
-  // Bulk operations state
-  const [bulkSelectMode, setBulkSelectMode] = useState(false);
-  const [selectedPlots, setSelectedPlots] = useState<Set<number>>(new Set());
-  const [bulkCropSelection, setBulkCropSelection] = useState("");
-  const [bulkOperationLoading, setBulkOperationLoading] = useState(false);
+    // Bulk operations state
+    const [bulkSelectMode, setBulkSelectMode] = useState(false);
+    const [selectedPlots, setSelectedPlots] = useState<Set<number>>(new Set());
+    const [bulkCropSelection, setBulkCropSelection] = useState("");
+    const [bulkOperationLoading, setBulkOperationLoading] = useState(false);
 
-  // Farm data state
-  const [farms, setFarms] = useState<Farm[]>([]);
-  const [selectedFarm, setSelectedFarm] = useState<Farm | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+    // Farm data state
+    const [farms, setFarms] = useState<Farm[]>([]);
+    const [selectedFarm, setSelectedFarm] = useState<Farm | null>(null);
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState<string | null>(null);
 
-  // Form states
-  const [farmConfig, setFarmConfig] = useState<FarmConfig>({
-    totalAcres: 2.5,
-    plotSizeAcres: 0.16,
-    rows: 4,
-    cols: 4,
-  });
+    // Form states
+    const [farmConfig, setFarmConfig] = useState<FarmConfig>({
+        totalAcres: 2.5,
+        plotSizeAcres: 0.16,
+        rows: 4,
+        cols: 4,
+    });
 
-  const [newActivity, setNewActivity] = useState<Partial<PlotActivity>>({
-    type: "watering",
-    description: "",
-    date: new Date().toISOString().split("T")[0],
-    cost: 0,
-  });
+    const [newActivity, setNewActivity] = useState<Partial<PlotActivity>>({
+        type: "watering",
+        description: "",
+        date: new Date().toISOString().split("T")[0],
+        cost: 0,
+    });
 
-  // Available crops for selection
-  const availableCrops = [
-    "Empty",
-    "Rice",
-    "Wheat",
-    "Sugarcane",
-    "Maize",
-    "Mustard",
-    "Potato",
-    "Onion",
-    "Tomato",
-    "Cotton",
-  ];
+    // Available crops for selection
+    const availableCrops = [
+        "Empty",
+        "Rice",
+        "Wheat",
+        "Sugarcane",
+        "Maize",
+        "Mustard",
+        "Potato",
+        "Onion",
+        "Tomato",
+        "Cotton",
+    ];
 
-  const updateFarmConfig = (farm: Farm) => {
-    let rows = 4;
-    let cols = 4;
+    const updateFarmConfig = (farm: Farm) => {
+        let rows = 4;
+        let cols = 4;
 
-    // Try to extract grid configuration from farm description
-    if (farm.description) {
-      const gridMatch = farm.description.match(/Grid: (\d+)x(\d+)/);
-      if (gridMatch) {
-        rows = parseInt(gridMatch[1]);
-        cols = parseInt(gridMatch[2]);
-      }
-    }
-
-    // Fallback: infer from actual plot count if no stored config
-    if (farm.plots.length > 0 && !farm.description?.includes("Grid:")) {
-      const maxPlotNumber = Math.max(...farm.plots.map((p) => p.plotNumber));
-
-      if (maxPlotNumber <= 16) {
-        rows = Math.ceil(Math.sqrt(maxPlotNumber));
-        cols = Math.ceil(maxPlotNumber / rows);
-      } else {
-        // For larger farms, prefer rectangular layouts
-        const factors = [];
-        for (let i = 1; i <= Math.sqrt(maxPlotNumber); i++) {
-          if (maxPlotNumber % i === 0) {
-            factors.push([i, maxPlotNumber / i]);
-          }
-        }
-
-        if (factors.length > 0) {
-          // Find the most rectangular factor (closest to square but prefer wider)
-          const bestFactor = factors.reduce((prev, current) => {
-            const [prevRows, prevCols] = prev;
-            const [currentRows, currentCols] = current;
-            const prevRatio =
-              Math.max(prevRows, prevCols) / Math.min(prevRows, prevCols);
-            const currentRatio =
-              Math.max(currentRows, currentCols) /
-              Math.min(currentRows, currentCols);
-            return currentRatio < prevRatio ? current : prev;
-          });
-          [rows, cols] = bestFactor;
-        }
-      }
-    }
-
-    // Calculate plot size based on total farm size and number of plots
-    const totalPlots = rows * cols;
-    const calculatedPlotSize =
-      totalPlots > 0 ? farm.totalSize / totalPlots : 0.16;
-
-    const newConfig = {
-      rows,
-      cols,
-      totalAcres: farm.totalSize,
-      plotSizeAcres: calculatedPlotSize,
-    };
-
-    setFarmConfig(newConfig);
-  };
-
-  useEffect(() => {
-    loadFarms();
-  }, []); // loadFarms is defined inside the component and doesn't need to be in deps
-
-  // Update farm config when selected farm changes
-  useEffect(() => {
-    if (selectedFarm) {
-      updateFarmConfig(selectedFarm);
-    }
-  }, [selectedFarm]);
-
-  const loadFarms = async () => {
-    try {
-      setLoading(true);
-      setError(null);
-
-      const response = await farmService.getFarms();
-
-      if (response.success && response.data) {
-        setFarms(response.data.farms);
-        if (response.data.farms.length > 0) {
-          const firstFarm = response.data.farms[0];
-          setSelectedFarm(firstFarm);
-        }
-      } else {
-        setError(response.message || "Failed to load farms");
-      }
-    } catch (err) {
-      console.error("Load farms error:", err);
-      setError("Failed to load farm data. Please try again.");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const createDefaultFarm = async () => {
-    try {
-      setLoading(true);
-      const userLocation = user?.profile?.location;
-
-      const response = await farmService.createDefaultFarm(userLocation);
-
-      if (response.success && response.data) {
-        await loadFarms();
-      } else {
-        setError(response.message || "Failed to create farm");
-      }
-    } catch (err) {
-      console.error("Create farm error:", err);
-      setError("Failed to create farm. Please try again.");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const updatePlotCrop = async (plotNumber: number, cropName: string) => {
-    if (!selectedFarm) return;
-
-    try {
-      const plotData = {
-        crop: {
-          name: cropName,
-          stage:
-            cropName === "Empty" ? ("fallow" as const) : ("planted" as const),
-          health: "good" as const,
-        },
-      };
-
-      const response = await farmService.updatePlot(
-        selectedFarm._id,
-        plotNumber,
-        plotData,
-      );
-
-      if (response.success) {
-        await loadFarms();
-        setIsEditing(false);
-        setEditingPlot(null);
-      } else {
-        setError(response.message || "Failed to update plot");
-      }
-    } catch (err) {
-      console.error("Update plot error:", err);
-      setError("Failed to update plot. Please try again.");
-    }
-  };
-
-  const addActivity = async () => {
-    if (!selectedFarm || selectedPlot === null || !newActivity.description)
-      return;
-
-    try {
-      const activity: PlotActivity = {
-        type: newActivity.type || "other",
-        description: newActivity.description,
-        date: newActivity.date || new Date().toISOString(),
-        cost: newActivity.cost || 0,
-        notes: newActivity.notes || "",
-      };
-
-      const response = await farmService.addPlotActivity(
-        selectedFarm._id,
-        selectedPlot,
-        activity,
-      );
-
-      if (response.success) {
-        await loadFarms();
-        setShowActivityForm(false);
-        setNewActivity({
-          type: "watering",
-          description: "",
-          date: new Date().toISOString().split("T")[0],
-          cost: 0,
-        });
-      } else {
-        setError(response.message || "Failed to add activity");
-      }
-    } catch (err) {
-      console.error("Add activity error:", err);
-      setError("Failed to add activity. Please try again.");
-    }
-  };
-
-  // Save farm configuration and apply changes
-  const [savingConfig, setSavingConfig] = useState(false);
-
-  const saveFarmConfiguration = async () => {
-    if (!selectedFarm || savingConfig) return;
-
-    try {
-      setSavingConfig(true);
-      setError(null);
-
-      console.log("Starting farm configuration save...", {
-        farmId: selectedFarm._id,
-        currentConfig: farmConfig,
-        currentFarm: selectedFarm,
-      });
-
-      // Validate configuration
-      if (farmConfig.rows < 1 || farmConfig.cols < 1) {
-        setError("Rows and columns must be at least 1");
-        return;
-      }
-
-      if (farmConfig.totalAcres <= 0) {
-        setError("Total farm size must be greater than 0");
-        return;
-      }
-
-      // Update the local farm config - calculate plot size from total size and number of plots
-      const totalPlots = farmConfig.rows * farmConfig.cols;
-      const calculatedPlotSize =
-        totalPlots > 0 ? farmConfig.totalAcres / totalPlots : 0.16;
-
-      // Update the farm config with calculated plot size
-      const updatedConfig = {
-        ...farmConfig,
-        plotSizeAcres: calculatedPlotSize,
-      };
-      setFarmConfig(updatedConfig);
-
-      console.log("Calculated values:", {
-        totalPlots,
-        totalAcres: farmConfig.totalAcres,
-        calculatedPlotSize,
-        updatedConfig,
-      });
-
-      // Generate new farm data with the updated configuration
-      const newFarmData = generateFarmData(
-        updatedConfig.rows,
-        updatedConfig.cols,
-      );
-      console.log("Generated new farm data:", newFarmData.slice(0, 3)); // Log first 3 plots
-
-      // Save to backend first
-      const baseDescription = selectedFarm.description || "";
-      const cleanDescription = baseDescription
-        .replace(/Grid: \d+x\d+, PlotSize: [\d.]+/g, "")
-        .trim();
-      const gridConfig = `Grid: ${updatedConfig.rows}x${updatedConfig.cols}, PlotSize: ${updatedConfig.plotSizeAcres}`;
-
-      const updateData = {
-        totalSize: updatedConfig.totalAcres,
-        plots: newFarmData,
-        description: cleanDescription
-          ? `${cleanDescription} ${gridConfig}`
-          : `Default farm - ${gridConfig}`,
-      };
-
-      console.log("Sending update to backend:", updateData);
-
-      const response = await farmService.updateFarm(
-        selectedFarm._id,
-        updateData,
-      );
-
-      console.log("Backend response:", response);
-
-      if (response.success && response.data) {
-        console.log(
-          "Farm configuration successfully saved to backend. Updated farm:",
-          response.data.farm,
-        );
-
-        // Update local state with the response from backend
-        const updatedFarm = response.data.farm;
-        setSelectedFarm(updatedFarm);
-
-        // Update farms list to reflect changes
-        setFarms(
-          farms.map((farm) =>
-            farm._id === selectedFarm._id ? updatedFarm : farm,
-          ),
-        );
-
-        // Verify the configuration was saved correctly
-        console.log("Verifying saved configuration:", {
-          savedDescription: updatedFarm.description,
-          savedTotalSize: updatedFarm.totalSize,
-          savedPlotsCount: updatedFarm.plots.length,
-          expectedConfig: farmConfig,
-        });
-
-        setShowFarmConfig(false);
-
-        // Reset selected plot if it no longer exists
-        const newTotalPlots = updatedConfig.rows * updatedConfig.cols;
-        if (selectedPlot && selectedPlot > newTotalPlots) {
-          setSelectedPlot(null);
-        }
-
-        // Force reload farms data after a short delay to ensure persistence
-        setTimeout(async () => {
-          console.log("🔄 Reloading farms to verify persistence...");
-          try {
-            const reloadResponse = await farmService.getFarms();
-            if (reloadResponse.success && reloadResponse.data) {
-              const reloadedFarm = reloadResponse.data.farms.find(
-                (f) => f._id === selectedFarm._id,
-              );
-              if (reloadedFarm) {
-                console.log("✅ Verified persistence - reloaded farm:", {
-                  name: reloadedFarm.name,
-                  totalSize: reloadedFarm.totalSize,
-                  plotsCount: reloadedFarm.plots.length,
-                  description: reloadedFarm.description,
-                });
-                // Update selected farm with reloaded data
-                setSelectedFarm(reloadedFarm);
-                setFarms(
-                  farms.map((f) =>
-                    f._id === reloadedFarm._id ? reloadedFarm : f,
-                  ),
-                );
-              } else {
-                console.error("❌ Could not find reloaded farm!");
-              }
+        // Try to extract grid configuration from farm description
+        if (farm.description) {
+            const gridMatch = farm.description.match(/Grid: (\d+)x(\d+)/);
+            if (gridMatch) {
+                rows = parseInt(gridMatch[1]);
+                cols = parseInt(gridMatch[2]);
             }
-          } catch (error) {
-            console.error("❌ Error during verification reload:", error);
-          }
-        }, 2000);
-      } else {
-        console.error("Failed to save farm configuration:", response);
-        setError(
-          response.message || "Failed to save farm configuration to server",
-        );
-      }
-    } catch (err) {
-      console.error("Save configuration error:", err);
-      setError("Failed to save farm configuration. Please try again.");
-    } finally {
-      setSavingConfig(false);
-    }
-  };
-
-  // Bulk operation functions
-  const toggleBulkSelectMode = () => {
-    setBulkSelectMode(!bulkSelectMode);
-    setSelectedPlots(new Set());
-    if (bulkSelectMode) {
-      setSelectedPlot(null);
-    }
-  };
-
-  const togglePlotSelection = (plotNumber: number) => {
-    if (!bulkSelectMode) return;
-
-    // Ensure plotNumber is an integer
-    const intPlotNumber = parseInt(String(plotNumber), 10);
-
-    if (!Number.isInteger(intPlotNumber) || intPlotNumber < 1) {
-      console.error("Invalid plot number:", plotNumber, "->", intPlotNumber);
-      return;
-    }
-
-    console.log("Plot selection:", intPlotNumber, typeof intPlotNumber);
-
-    const newSelectedPlots = new Set(selectedPlots);
-    if (newSelectedPlots.has(intPlotNumber)) {
-      newSelectedPlots.delete(intPlotNumber);
-    } else {
-      newSelectedPlots.add(intPlotNumber);
-    }
-
-    setSelectedPlots(newSelectedPlots);
-  };
-
-  const selectAllPlots = () => {
-    if (!selectedFarm) return;
-
-    // Convert all plot numbers to guaranteed integers
-    const integerPlotNumbers = selectedFarm.plots
-      .map((plot) => Math.floor(Number(plot.plotNumber)))
-      .filter((n) => Number.isInteger(n) && n > 0);
-
-    setSelectedPlots(new Set(integerPlotNumbers));
-  };
-
-  const clearPlotSelection = () => {
-    setSelectedPlots(new Set());
-  };
-
-  const bulkPlantCrop = async () => {
-    if (!selectedFarm || selectedPlots.size === 0 || !bulkCropSelection) return;
-
-    try {
-      setBulkOperationLoading(true);
-      setError(null);
-
-      const plotNumbers = Array.from(selectedPlots);
-
-      // Ensure all plot numbers are valid integers
-      const validPlotNumbers = plotNumbers
-        .map((num) => Math.floor(Number(num)))
-        .filter((num) => Number.isInteger(num) && num > 0);
-
-      if (validPlotNumbers.length === 0) {
-        setError("Invalid plot numbers selected");
-        return;
-      }
-
-      // Calculate expected harvest date (3 months from now as default)
-      const plantedDate = new Date();
-      const expectedHarvestDate = new Date();
-      expectedHarvestDate.setMonth(expectedHarvestDate.getMonth() + 3);
-
-      const cropData = {
-        crop: {
-          name: bulkCropSelection,
-          variety: "",
-          plantedDate: plantedDate.toISOString(),
-          expectedHarvestDate: expectedHarvestDate.toISOString(),
-          stage: "planted" as const,
-          health: "good" as const,
-        },
-      };
-
-      const response = await farmService.bulkUpdatePlots(
-        selectedFarm._id,
-        validPlotNumbers,
-        cropData,
-      );
-
-      if (response.success) {
-        await loadFarms();
-        setSelectedPlots(new Set());
-        setBulkCropSelection("");
-        setBulkSelectMode(false);
-      } else {
-        console.error("Bulk planting failed:", response);
-        console.error("Full error details:", JSON.stringify(response, null, 2));
-        if (response.errors && Array.isArray(response.errors)) {
-          console.error("Individual errors:", response.errors);
-          const errorMessages = response.errors
-            .map((err) => err.msg || err.message)
-            .join(", ");
-          setError(`Validation failed: ${errorMessages}`);
-        } else {
-          setError(response.message || "Failed to plant crops in bulk");
         }
-      }
-    } catch (err) {
-      console.error("Bulk plant crop error:", err);
-      setError("Failed to plant crops in bulk. Please try again.");
-    } finally {
-      setBulkOperationLoading(false);
-    }
-  };
 
-  const bulkClearPlots = async () => {
-    if (!selectedFarm || selectedPlots.size === 0) return;
+        // Fallback: infer from actual plot count if no stored config
+        if (farm.plots.length > 0 && !farm.description?.includes("Grid:")) {
+            const maxPlotNumber = Math.max(
+                ...farm.plots.map((p) => p.plotNumber),
+            );
 
-    try {
-      setBulkOperationLoading(true);
-      setError(null);
+            if (maxPlotNumber <= 16) {
+                rows = Math.ceil(Math.sqrt(maxPlotNumber));
+                cols = Math.ceil(maxPlotNumber / rows);
+            } else {
+                // For larger farms, prefer rectangular layouts
+                const factors = [];
+                for (let i = 1; i <= Math.sqrt(maxPlotNumber); i++) {
+                    if (maxPlotNumber % i === 0) {
+                        factors.push([i, maxPlotNumber / i]);
+                    }
+                }
 
-      const plotNumbers = Array.from(selectedPlots);
-
-      // Ensure all plot numbers are valid integers
-      const validPlotNumbers = plotNumbers
-        .map((num) => Math.floor(Number(num)))
-        .filter((num) => Number.isInteger(num) && num > 0);
-
-      if (validPlotNumbers.length === 0) {
-        setError("Invalid plot numbers selected");
-        return;
-      }
-
-      const response = await farmService.bulkClearPlots(
-        selectedFarm._id,
-        validPlotNumbers,
-      );
-
-      if (response.success) {
-        await loadFarms();
-        setSelectedPlots(new Set());
-        setBulkSelectMode(false);
-      } else {
-        console.error("Bulk clearing failed:", response);
-        console.error("Full error details:", JSON.stringify(response, null, 2));
-        if (response.errors && Array.isArray(response.errors)) {
-          console.error("Individual errors:", response.errors);
-          const errorMessages = response.errors
-            .map((err) => err.msg || err.message)
-            .join(", ");
-          setError(`Validation failed: ${errorMessages}`);
-        } else {
-          setError(response.message || "Failed to clear plots in bulk");
+                if (factors.length > 0) {
+                    // Find the most rectangular factor (closest to square but prefer wider)
+                    const bestFactor = factors.reduce((prev, current) => {
+                        const [prevRows, prevCols] = prev;
+                        const [currentRows, currentCols] = current;
+                        const prevRatio =
+                            Math.max(prevRows, prevCols) /
+                            Math.min(prevRows, prevCols);
+                        const currentRatio =
+                            Math.max(currentRows, currentCols) /
+                            Math.min(currentRows, currentCols);
+                        return currentRatio < prevRatio ? current : prev;
+                    });
+                    [rows, cols] = bestFactor;
+                }
+            }
         }
-      }
-    } catch (err) {
-      console.error("Bulk clear plots error:", err);
-      setError("Failed to clear plots in bulk. Please try again.");
-    } finally {
-      setBulkOperationLoading(false);
-    }
-  };
 
-  // Generate farm data based on current farm's plots
-  const generateFarmData = (rows: number, cols: number): PlotData[] => {
-    const newData: PlotData[] = [];
-    const totalPlots = rows * cols;
-    const calculatedPlotSize =
-      totalPlots > 0 ? farmConfig.totalAcres / totalPlots : 0.16;
+        // Calculate plot size based on total farm size and number of plots
+        const totalPlots = rows * cols;
+        const calculatedPlotSize =
+            totalPlots > 0 ? farm.totalSize / totalPlots : 0.16;
 
-    for (let row = 0; row < rows; row++) {
-      for (let col = 0; col < cols; col++) {
-        const plotNumber = row * cols + col + 1;
-        const existingPlot = selectedFarm?.plots.find((plot) => {
-          const backendPlotNumber = Math.floor(Number(plot.plotNumber));
-          return backendPlotNumber === plotNumber;
-        });
+        const newConfig = {
+            rows,
+            cols,
+            totalAcres: farm.totalSize,
+            plotSizeAcres: calculatedPlotSize,
+        };
 
-        newData.push(
-          existingPlot
-            ? {
-                ...existingPlot,
-                plotNumber: Math.floor(Number(existingPlot.plotNumber)),
-                size: calculatedPlotSize,
-              }
-            : {
-                plotNumber: plotNumber,
-                size: calculatedPlotSize,
-                crop: {
-                  name: "Empty",
-                  stage: "fallow",
-                  health: "good",
-                },
-                soilHealth: {
-                  ph: 7.0,
-                  moisture: 50,
-                  recommendations: [],
-                },
-                irrigation: {
-                  type: "manual",
-                  schedule: {
-                    frequency: 2,
-                    duration: 30,
-                    times: ["06:00", "18:00"],
-                  },
-                },
-                pestAlerts: [],
-                activities: [],
-                isActive: true,
-              },
-        );
-      }
-    }
-    return newData;
-  };
-
-  // Crop color mapping for different crop types
-  const getCropColor = (cropName: string): string => {
-    const cropColors: { [key: string]: string } = {
-      // Grains
-      Rice: "bg-yellow-100 dark:bg-yellow-900/30 border-yellow-400 dark:border-yellow-600 hover:bg-yellow-200 dark:hover:bg-yellow-900/50",
-      Wheat:
-        "bg-amber-100 dark:bg-amber-900/30 border-amber-400 dark:border-amber-600 hover:bg-amber-200 dark:hover:bg-amber-900/50",
-      Corn: "bg-yellow-200 dark:bg-yellow-800/40 border-yellow-500 dark:border-yellow-600 hover:bg-yellow-300 dark:hover:bg-yellow-800/60",
-      Barley:
-        "bg-orange-100 dark:bg-orange-900/30 border-orange-400 dark:border-orange-600 hover:bg-orange-200 dark:hover:bg-orange-900/50",
-      Millet:
-        "bg-yellow-50 dark:bg-yellow-900/20 border-yellow-300 dark:border-yellow-700 hover:bg-yellow-100 dark:hover:bg-yellow-900/40",
-
-      // Vegetables
-      Tomato:
-        "bg-red-100 dark:bg-red-900/30 border-red-400 dark:border-red-600 hover:bg-red-200 dark:hover:bg-red-900/50",
-      Potato:
-        "bg-amber-50 dark:bg-amber-900/20 border-amber-300 dark:border-amber-700 hover:bg-amber-100 dark:hover:bg-amber-900/40",
-      Onion:
-        "bg-purple-100 dark:bg-purple-900/30 border-purple-400 dark:border-purple-600 hover:bg-purple-200 dark:hover:bg-purple-900/50",
-      Carrot:
-        "bg-orange-200 dark:bg-orange-800/40 border-orange-500 dark:border-orange-600 hover:bg-orange-300 dark:hover:bg-orange-800/60",
-      Cabbage:
-        "bg-green-100 dark:bg-green-900/30 border-green-400 dark:border-green-600 hover:bg-green-200 dark:hover:bg-green-900/50",
-      Lettuce:
-        "bg-green-50 dark:bg-green-900/20 border-green-300 dark:border-green-700 hover:bg-green-100 dark:hover:bg-green-900/40",
-      Spinach:
-        "bg-emerald-100 dark:bg-emerald-900/30 border-emerald-400 dark:border-emerald-600 hover:bg-emerald-200 dark:hover:bg-emerald-900/50",
-      Broccoli:
-        "bg-green-200 dark:bg-green-800/40 border-green-500 dark:border-green-600 hover:bg-green-300 dark:hover:bg-green-800/60",
-      Cauliflower:
-        "bg-gray-100 dark:bg-gray-800 border-gray-400 dark:border-gray-600 hover:bg-gray-200 dark:hover:bg-gray-700",
-      "Bell Pepper":
-        "bg-red-50 dark:bg-red-900/20 border-red-300 dark:border-red-700 hover:bg-red-100 dark:hover:bg-red-900/40",
-      Cucumber:
-        "bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-700 hover:bg-green-100 dark:hover:bg-green-900/40",
-      Eggplant:
-        "bg-purple-200 dark:bg-purple-800/40 border-purple-500 dark:border-purple-600 hover:bg-purple-300 dark:hover:bg-purple-800/60",
-
-      // Legumes
-      Soybean:
-        "bg-lime-100 dark:bg-lime-900/30 border-lime-400 dark:border-lime-600 hover:bg-lime-200 dark:hover:bg-lime-900/50",
-      Peas: "bg-green-100 dark:bg-green-900/30 border-green-300 dark:border-green-600 hover:bg-green-200 dark:hover:bg-green-900/50",
-      Beans:
-        "bg-emerald-50 dark:bg-emerald-900/20 border-emerald-300 dark:border-emerald-700 hover:bg-emerald-100 dark:hover:bg-emerald-900/40",
-      Lentils:
-        "bg-orange-50 dark:bg-orange-900/20 border-orange-300 dark:border-orange-700 hover:bg-orange-100 dark:hover:bg-orange-900/40",
-      Chickpeas:
-        "bg-yellow-50 dark:bg-yellow-900/20 border-yellow-200 dark:border-yellow-700 hover:bg-yellow-100 dark:hover:bg-yellow-900/40",
-
-      // Fruits
-      Strawberry:
-        "bg-pink-100 dark:bg-pink-900/30 border-pink-400 dark:border-pink-600 hover:bg-pink-200 dark:hover:bg-pink-900/50",
-      Watermelon:
-        "bg-green-200 dark:bg-green-800/40 border-green-400 dark:border-green-600 hover:bg-green-300 dark:hover:bg-green-800/60",
-      Pumpkin:
-        "bg-orange-200 dark:bg-orange-800/40 border-orange-400 dark:border-orange-600 hover:bg-orange-300 dark:hover:bg-orange-800/60",
-      Melon:
-        "bg-green-100 dark:bg-green-900/30 border-green-300 dark:border-green-600 hover:bg-green-200 dark:hover:bg-green-900/50",
-
-      // Cash crops
-      Cotton:
-        "bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-600",
-      Sugarcane:
-        "bg-green-300 dark:bg-green-800/60 border-green-600 dark:border-green-500 hover:bg-green-400 dark:hover:bg-green-800/80",
-      Tobacco:
-        "bg-amber-200 dark:bg-amber-800/40 border-amber-500 dark:border-amber-600 hover:bg-amber-300 dark:hover:bg-amber-800/60",
-
-      // Herbs & Spices
-      Basil:
-        "bg-green-100 dark:bg-green-900/30 border-green-300 dark:border-green-600 hover:bg-green-200 dark:hover:bg-green-900/50",
-      Mint: "bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-700 hover:bg-green-100 dark:hover:bg-green-900/40",
-      Cilantro:
-        "bg-emerald-50 dark:bg-emerald-900/20 border-emerald-200 dark:border-emerald-700 hover:bg-emerald-100 dark:hover:bg-emerald-900/40",
-      Parsley:
-        "bg-green-100 dark:bg-green-900/30 border-green-200 dark:border-green-600 hover:bg-green-200 dark:hover:bg-green-900/50",
-
-      // Oilseeds
-      Sunflower:
-        "bg-yellow-200 dark:bg-yellow-800/40 border-yellow-500 dark:border-yellow-600 hover:bg-yellow-300 dark:hover:bg-yellow-800/60",
-      Mustard:
-        "bg-yellow-100 dark:bg-yellow-900/30 border-yellow-300 dark:border-yellow-600 hover:bg-yellow-200 dark:hover:bg-yellow-900/50",
-      Sesame:
-        "bg-orange-50 dark:bg-orange-900/20 border-orange-200 dark:border-orange-700 hover:bg-orange-100 dark:hover:bg-orange-900/40",
+        setFarmConfig(newConfig);
     };
 
-    return (
-      cropColors[cropName] ||
-      "bg-blue-100 dark:bg-blue-900/30 border-blue-400 dark:border-blue-600 hover:bg-blue-200 dark:hover:bg-blue-900/50"
-    );
-  };
+    useEffect(() => {
+        loadFarms();
+    }, []); // loadFarms is defined inside the component and doesn't need to be in deps
 
-  // Get plot color based on view mode
-  const getPlotColor = (plot: PlotData): string => {
-    switch (viewMode) {
-      case "crops":
-        if (!plot.crop || plot.crop.name === "Empty")
-          return "bg-gray-200 dark:bg-gray-700 border-gray-300 dark:border-gray-600";
-        return getCropColor(plot.crop.name);
+    // Update farm config when selected farm changes
+    useEffect(() => {
+        if (selectedFarm) {
+            updateFarmConfig(selectedFarm);
+        }
+    }, [selectedFarm]);
 
-      case "health":
-        if (!plot.crop || plot.crop.name === "Empty")
-          return "bg-gray-200 dark:bg-gray-700 border-gray-300 dark:border-gray-600";
-        switch (plot.crop.health) {
-          case "excellent":
-            return "bg-green-200 dark:bg-green-800/40 border-green-400 dark:border-green-600";
-          case "good":
-            return "bg-green-100 dark:bg-green-900/30 border-green-300 dark:border-green-600";
-          case "fair":
-            return "bg-yellow-100 dark:bg-yellow-900/30 border-yellow-300 dark:border-yellow-600";
-          case "poor":
-            return "bg-orange-100 dark:bg-orange-900/30 border-orange-300 dark:border-orange-600";
-          case "critical":
-            return "bg-red-100 dark:bg-red-900/30 border-red-300 dark:border-red-600";
-          default:
-            return "bg-gray-200 dark:bg-gray-700 border-gray-300 dark:border-gray-600";
+    const loadFarms = async (preserveSelection = false) => {
+        try {
+            // Only show loading state for initial load
+            if (!preserveSelection) {
+                setLoading(true);
+            }
+            setError(null);
+
+            const response = await farmService.getFarms();
+
+            if (response.success && response.data) {
+                setFarms(response.data.farms);
+
+                if (preserveSelection && selectedFarm) {
+                    // Find and update the currently selected farm
+                    const updatedFarm = response.data.farms.find(
+                        (f) => f._id === selectedFarm._id,
+                    );
+                    if (updatedFarm) {
+                        setSelectedFarm(updatedFarm);
+                    }
+                } else if (response.data.farms.length > 0 && !selectedFarm) {
+                    const firstFarm = response.data.farms[0];
+                    setSelectedFarm(firstFarm);
+                }
+            } else {
+                setError(response.message || "Failed to load farms");
+            }
+        } catch (err) {
+            console.error("Load farms error:", err);
+            setError("Failed to load farm data. Please try again.");
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const createDefaultFarm = async () => {
+        try {
+            setLoading(true);
+            const userLocation = user?.profile?.location;
+
+            const response = await farmService.createDefaultFarm(userLocation);
+
+            if (response.success && response.data) {
+                await loadFarms();
+            } else {
+                setError(response.message || "Failed to create farm");
+            }
+        } catch (err) {
+            console.error("Create farm error:", err);
+            setError("Failed to create farm. Please try again.");
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const updatePlotCrop = async (plotNumber: number, cropName: string) => {
+        if (!selectedFarm) return;
+
+        try {
+            // Optimistic update - update local state immediately
+            const updatedPlots = selectedFarm.plots.map((plot) => {
+                if (plot.plotNumber === plotNumber) {
+                    return {
+                        ...plot,
+                        crop: {
+                            name: cropName,
+                            stage:
+                                cropName === "Empty"
+                                    ? ("fallow" as const)
+                                    : ("planted" as const),
+                            health: "good" as const,
+                        },
+                    };
+                }
+                return plot;
+            });
+
+            const updatedFarm = {
+                ...selectedFarm,
+                plots: updatedPlots,
+            };
+
+            // Update local state immediately for instant feedback
+            setSelectedFarm(updatedFarm);
+            setFarms(
+                farms.map((f) =>
+                    f._id === selectedFarm._id ? updatedFarm : f,
+                ),
+            );
+            setEditingPlot(null);
+
+            const plotData = {
+                crop: {
+                    name: cropName,
+                    stage:
+                        cropName === "Empty"
+                            ? ("fallow" as const)
+                            : ("planted" as const),
+                    health: "good" as const,
+                },
+            };
+
+            const response = await farmService.updatePlot(
+                selectedFarm._id,
+                plotNumber,
+                plotData,
+            );
+
+            if (response.success) {
+                // Refresh data in background without showing loading state
+                await loadFarms(true);
+            } else {
+                // Revert optimistic update on error
+                setSelectedFarm(selectedFarm);
+                setFarms(farms);
+                setError(response.message || "Failed to update plot");
+            }
+        } catch (err) {
+            console.error("Update plot error:", err);
+            // Revert optimistic update on error
+            setSelectedFarm(selectedFarm);
+            setFarms(farms);
+            setError("Failed to update plot. Please try again.");
+        }
+    };
+
+    const updatePlotGrowthStage = async (
+        plotNumber: number,
+        stage:
+            | "planted"
+            | "growing"
+            | "flowering"
+            | "ready_to_harvest"
+            | "harvested"
+            | "fallow",
+    ) => {
+        if (!selectedFarm) return;
+
+        try {
+            // Optimistic update - update local state immediately
+            const updatedPlots = selectedFarm.plots.map((plot) => {
+                if (plot.plotNumber === plotNumber && plot.crop) {
+                    return {
+                        ...plot,
+                        crop: {
+                            ...plot.crop,
+                            stage: stage,
+                        },
+                    };
+                }
+                return plot;
+            });
+
+            const updatedFarm = {
+                ...selectedFarm,
+                plots: updatedPlots,
+            };
+
+            // Update local state immediately for instant feedback
+            setSelectedFarm(updatedFarm);
+            setFarms(
+                farms.map((f) =>
+                    f._id === selectedFarm._id ? updatedFarm : f,
+                ),
+            );
+
+            const currentPlot = selectedFarm.plots.find(
+                (p) => p.plotNumber === plotNumber,
+            );
+            if (!currentPlot || !currentPlot.crop) return;
+
+            const plotData = {
+                crop: {
+                    ...currentPlot.crop,
+                    stage: stage,
+                },
+            };
+
+            const response = await farmService.updatePlot(
+                selectedFarm._id,
+                plotNumber,
+                plotData,
+            );
+
+            if (response.success) {
+                // Refresh data in background without showing loading state
+                await loadFarms(true);
+            } else {
+                // Revert optimistic update on error
+                setSelectedFarm(selectedFarm);
+                setFarms(farms);
+                setError(response.message || "Failed to update growth stage");
+            }
+        } catch (err) {
+            console.error("Update growth stage error:", err);
+            // Revert optimistic update on error
+            setSelectedFarm(selectedFarm);
+            setFarms(farms);
+            setError("Failed to update growth stage. Please try again.");
+        }
+    };
+
+    const addActivity = async () => {
+        if (!selectedFarm || selectedPlot === null || !newActivity.description)
+            return;
+
+        try {
+            const activity: PlotActivity = {
+                type: newActivity.type || "other",
+                description: newActivity.description,
+                date: newActivity.date || new Date().toISOString(),
+                cost: newActivity.cost || 0,
+                notes: newActivity.notes || "",
+            };
+
+            // Close form immediately for better UX
+            setShowActivityForm(false);
+            setNewActivity({
+                type: "watering",
+                description: "",
+                date: new Date().toISOString().split("T")[0],
+                cost: 0,
+            });
+
+            const response = await farmService.addPlotActivity(
+                selectedFarm._id,
+                selectedPlot,
+                activity,
+            );
+
+            if (response.success) {
+                // Refresh data in background without showing loading state
+                await loadFarms(true);
+            } else {
+                setError(response.message || "Failed to add activity");
+            }
+        } catch (err) {
+            console.error("Add activity error:", err);
+            setError("Failed to add activity. Please try again.");
+        }
+    };
+
+    // Save farm configuration and apply changes
+    const [savingConfig, setSavingConfig] = useState(false);
+
+    const saveFarmConfiguration = async () => {
+        if (!selectedFarm || savingConfig) return;
+
+        try {
+            setSavingConfig(true);
+            setError(null);
+
+            console.log("Starting farm configuration save...", {
+                farmId: selectedFarm._id,
+                currentConfig: farmConfig,
+                currentFarm: selectedFarm,
+            });
+
+            // Validate configuration
+            if (farmConfig.rows < 1 || farmConfig.cols < 1) {
+                setError("Rows and columns must be at least 1");
+                return;
+            }
+
+            if (farmConfig.totalAcres <= 0) {
+                setError("Total farm size must be greater than 0");
+                return;
+            }
+
+            // Update the local farm config - calculate plot size from total size and number of plots
+            const totalPlots = farmConfig.rows * farmConfig.cols;
+            const calculatedPlotSize =
+                totalPlots > 0 ? farmConfig.totalAcres / totalPlots : 0.16;
+
+            // Update the farm config with calculated plot size
+            const updatedConfig = {
+                ...farmConfig,
+                plotSizeAcres: calculatedPlotSize,
+            };
+            setFarmConfig(updatedConfig);
+
+            console.log("Calculated values:", {
+                totalPlots,
+                totalAcres: farmConfig.totalAcres,
+                calculatedPlotSize,
+                updatedConfig,
+            });
+
+            // Generate new farm data with the updated configuration
+            const newFarmData = generateFarmData(
+                updatedConfig.rows,
+                updatedConfig.cols,
+            );
+            console.log("Generated new farm data:", newFarmData.slice(0, 3)); // Log first 3 plots
+
+            // Save to backend first
+            const baseDescription = selectedFarm.description || "";
+            const cleanDescription = baseDescription
+                .replace(/Grid: \d+x\d+, PlotSize: [\d.]+/g, "")
+                .trim();
+            const gridConfig = `Grid: ${updatedConfig.rows}x${updatedConfig.cols}, PlotSize: ${updatedConfig.plotSizeAcres}`;
+
+            const updateData = {
+                totalSize: updatedConfig.totalAcres,
+                plots: newFarmData,
+                description: cleanDescription
+                    ? `${cleanDescription} ${gridConfig}`
+                    : `Default farm - ${gridConfig}`,
+            };
+
+            console.log("Sending update to backend:", updateData);
+
+            const response = await farmService.updateFarm(
+                selectedFarm._id,
+                updateData,
+            );
+
+            console.log("Backend response:", response);
+
+            if (response.success && response.data) {
+                console.log(
+                    "Farm configuration successfully saved to backend. Updated farm:",
+                    response.data.farm,
+                );
+
+                // Update local state with the response from backend
+                const updatedFarm = response.data.farm;
+                setSelectedFarm(updatedFarm);
+
+                // Update farms list to reflect changes
+                setFarms(
+                    farms.map((farm) =>
+                        farm._id === selectedFarm._id ? updatedFarm : farm,
+                    ),
+                );
+
+                // Verify the configuration was saved correctly
+                console.log("Verifying saved configuration:", {
+                    savedDescription: updatedFarm.description,
+                    savedTotalSize: updatedFarm.totalSize,
+                    savedPlotsCount: updatedFarm.plots.length,
+                    expectedConfig: farmConfig,
+                });
+
+                setShowFarmConfig(false);
+
+                // Reset selected plot if it no longer exists
+                const newTotalPlots = updatedConfig.rows * updatedConfig.cols;
+                if (selectedPlot && selectedPlot > newTotalPlots) {
+                    setSelectedPlot(null);
+                }
+
+                // Force reload farms data after a short delay to ensure persistence
+                setTimeout(async () => {
+                    console.log("🔄 Reloading farms to verify persistence...");
+                    try {
+                        const reloadResponse = await farmService.getFarms();
+                        if (reloadResponse.success && reloadResponse.data) {
+                            const reloadedFarm = reloadResponse.data.farms.find(
+                                (f) => f._id === selectedFarm._id,
+                            );
+                            if (reloadedFarm) {
+                                console.log(
+                                    "✅ Verified persistence - reloaded farm:",
+                                    {
+                                        name: reloadedFarm.name,
+                                        totalSize: reloadedFarm.totalSize,
+                                        plotsCount: reloadedFarm.plots.length,
+                                        description: reloadedFarm.description,
+                                    },
+                                );
+                                // Update selected farm with reloaded data
+                                setSelectedFarm(reloadedFarm);
+                                setFarms(
+                                    farms.map((f) =>
+                                        f._id === reloadedFarm._id
+                                            ? reloadedFarm
+                                            : f,
+                                    ),
+                                );
+                            } else {
+                                console.error(
+                                    "❌ Could not find reloaded farm!",
+                                );
+                            }
+                        }
+                    } catch (error) {
+                        console.error(
+                            "❌ Error during verification reload:",
+                            error,
+                        );
+                    }
+                }, 2000);
+            } else {
+                console.error("Failed to save farm configuration:", response);
+                setError(
+                    response.message ||
+                        "Failed to save farm configuration to server",
+                );
+            }
+        } catch (err) {
+            console.error("Save configuration error:", err);
+            setError("Failed to save farm configuration. Please try again.");
+        } finally {
+            setSavingConfig(false);
+        }
+    };
+
+    // Bulk operation functions
+    const toggleBulkSelectMode = () => {
+        setBulkSelectMode(!bulkSelectMode);
+        setSelectedPlots(new Set());
+        if (bulkSelectMode) {
+            setSelectedPlot(null);
+        }
+    };
+
+    const togglePlotSelection = (plotNumber: number) => {
+        if (!bulkSelectMode) return;
+
+        // Ensure plotNumber is an integer
+        const intPlotNumber = parseInt(String(plotNumber), 10);
+
+        if (!Number.isInteger(intPlotNumber) || intPlotNumber < 1) {
+            console.error(
+                "Invalid plot number:",
+                plotNumber,
+                "->",
+                intPlotNumber,
+            );
+            return;
         }
 
-      case "moisture": {
-        const moisture = plot.soilHealth.moisture || 0;
-        if (moisture >= 70)
-          return "bg-blue-200 dark:bg-blue-800/40 border-blue-400 dark:border-blue-600";
-        if (moisture >= 40)
-          return "bg-blue-100 dark:bg-blue-900/30 border-blue-300 dark:border-blue-600";
-        return "bg-red-100 dark:bg-red-900/30 border-red-300 dark:border-red-600";
-      }
+        console.log("Plot selection:", intPlotNumber, typeof intPlotNumber);
 
-      default:
-        return "bg-gray-200 dark:bg-gray-700 border-gray-300 dark:border-gray-600";
-    }
-  };
+        const newSelectedPlots = new Set(selectedPlots);
+        if (newSelectedPlots.has(intPlotNumber)) {
+            newSelectedPlots.delete(intPlotNumber);
+        } else {
+            newSelectedPlots.add(intPlotNumber);
+        }
 
-  // Generate crop suggestions based on plot conditions
-  const generateCropSuggestions = (plot: PlotData): CropSuggestion[] => {
-    const suggestions: CropSuggestion[] = [];
-    const moisture = plot.soilHealth.moisture || 50;
-    const ph = plot.soilHealth.ph || 7;
+        setSelectedPlots(newSelectedPlots);
+    };
 
-    if (moisture >= 60) {
-      suggestions.push({
-        name: "Rice",
-        suitability: "High",
-        reason: "High soil moisture ideal for rice cultivation",
-        expectedYield: "40-50 quintals/hectare",
-        roi: "₹35,000-45,000",
-      });
-    }
+    const selectAllPlots = () => {
+        if (!selectedFarm) return;
 
-    if (ph >= 6 && ph <= 7.5) {
-      suggestions.push({
-        name: "Wheat",
-        suitability: "High",
-        reason: "Optimal pH range for wheat cultivation",
-        expectedYield: "35-45 quintals/hectare",
-        roi: "₹40,000-50,000",
-      });
-    }
+        // Convert all plot numbers to guaranteed integers
+        const integerPlotNumbers = selectedFarm.plots
+            .map((plot) => Math.floor(Number(plot.plotNumber)))
+            .filter((n) => Number.isInteger(n) && n > 0);
 
-    if (moisture <= 40) {
-      suggestions.push({
-        name: "Mustard",
-        suitability: "Medium",
-        reason: "Drought tolerant crop suitable for low moisture",
-        expectedYield: "15-20 quintals/hectare",
-        roi: "₹25,000-35,000",
-      });
-    }
+        setSelectedPlots(new Set(integerPlotNumbers));
+    };
 
-    return suggestions;
-  };
+    const bulkPlantCrop = async () => {
+        if (!selectedFarm || selectedPlots.size === 0 || !bulkCropSelection)
+            return;
 
-  const farmData = selectedFarm
-    ? generateFarmData(farmConfig.rows, farmConfig.cols)
-    : [];
-  const selectedPlotData =
-    selectedPlot !== null
-      ? farmData.find((p) => p.plotNumber === selectedPlot)
-      : null;
-  const cropSuggestions = selectedPlotData
-    ? generateCropSuggestions(selectedPlotData)
-    : [];
+        try {
+            setBulkOperationLoading(true);
+            setError(null);
 
-  // Loading state
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center min-h-96">
-        <div className="text-center">
-          <Loader2 className="animate-spin h-8 w-8 text-green-600 mx-auto mb-4" />
-          <p className="text-gray-600 dark:text-gray-400">
-            Loading your farm data...
-          </p>
-        </div>
-      </div>
-    );
-  }
+            const plotNumbers = Array.from(selectedPlots);
 
-  // Error state
-  if (error) {
-    return (
-      <div className="text-center py-12">
-        <AlertTriangle className="h-12 w-12 text-red-500 mx-auto mb-4" />
-        <h3 className="text-lg font-medium text-gray-900 dark:text-gray-100 mb-2">
-          Farm Data Error
-        </h3>
-        <p className="text-gray-600 dark:text-gray-400 mb-4">{error}</p>
-        <button
-          onClick={loadFarms}
-          className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 dark:bg-green-700 dark:hover:bg-green-800"
-        >
-          Try Again
-        </button>
-      </div>
-    );
-  }
+            // Ensure all plot numbers are valid integers
+            const validPlotNumbers = plotNumbers
+                .map((num) => Math.floor(Number(num)))
+                .filter((num) => Number.isInteger(num) && num > 0);
 
-  // No farms state
-  if (farms.length === 0) {
-    return (
-      <div className="text-center py-12">
-        <MapIcon className="h-16 w-16 text-gray-300 dark:text-gray-600 mx-auto mb-6" />
-        <h3 className="text-xl font-semibold text-gray-900 dark:text-gray-100 mb-2">
-          No Farms Found
-        </h3>
-        <p className="text-gray-600 dark:text-gray-400 mb-6 max-w-md mx-auto">
-          Create your first farm to start visualizing and managing your plots,
-          crops, and activities.
-        </p>
-        <button
-          onClick={createDefaultFarm}
-          className="inline-flex items-center px-6 py-3 bg-green-600 text-white font-medium rounded-lg hover:bg-green-700 dark:bg-green-700 dark:hover:bg-green-800 transition-colors"
-        >
-          <Plus className="w-5 h-5 mr-2" />
-          Create Your First Farm
-        </button>
-      </div>
-    );
-  }
+            if (validPlotNumbers.length === 0) {
+                setError("Invalid plot numbers selected");
+                return;
+            }
 
-  return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">
-            Farm Visualization
-          </h1>
-          <p className="text-gray-600 dark:text-gray-400">
-            Manage your plots and monitor crop health
-          </p>
-        </div>
-        <div className="flex items-center space-x-4">
-          {/* Farm Selector */}
-          {farms.length > 1 && (
-            <select
-              value={selectedFarm?._id || ""}
-              onChange={(e) => {
-                const farm = farms.find((f) => f._id === e.target.value);
-                if (farm) {
-                  setSelectedFarm(farm);
-                  setSelectedPlot(null);
-                  setError(null);
-                }
-              }}
-              className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
-            >
-              {farms.map((farm) => (
-                <option key={farm._id} value={farm._id}>
-                  {farm.name} ({farm.totalSize} acres)
-                </option>
-              ))}
-            </select>
-          )}
+            // Calculate expected harvest date (3 months from now as default)
+            const plantedDate = new Date();
+            const expectedHarvestDate = new Date();
+            expectedHarvestDate.setMonth(expectedHarvestDate.getMonth() + 3);
 
-          <button
-            onClick={() => {
-              setError(null);
-              setShowFarmConfig(!showFarmConfig);
-            }}
-            className="p-2 text-gray-600 hover:text-gray-900 border border-gray-300 rounded-md"
-            title="Farm Configuration"
-          >
-            <Settings size={20} />
-          </button>
-
-          <button
-            onClick={async () => {
-              console.log("🔄 Manual refresh triggered");
-              setError(null);
-              await loadFarms();
-            }}
-            className="p-2 text-blue-600 hover:text-blue-900 border border-blue-300 rounded-md"
-            title="Refresh Farm Data"
-          >
-            <RefreshCw size={20} />
-          </button>
-
-          <button
-            onClick={async () => {
-              console.log("🧪 Testing plot number validation:");
-              const plotNumbers = Array.from(selectedPlots);
-              console.log("- selectedPlots Set:", selectedPlots);
-              console.log("- Array from Set:", plotNumbers);
-              console.log(
-                "- Types:",
-                plotNumbers.map((n) => typeof n),
-              );
-              console.log(
-                "- All integers?",
-                plotNumbers.every((n) => Number.isInteger(n)),
-              );
-              console.log(
-                "- All positive?",
-                plotNumbers.every((n) => n > 0),
-              );
-
-              const testData = {
-                plotNumbers: plotNumbers,
-              };
-              console.log("- Test JSON:", JSON.stringify(testData));
-
-              // Call test endpoint
-              try {
-                const response = await fetch("/api/farms/test-plot-numbers", {
-                  method: "POST",
-                  headers: {
-                    "Content-Type": "application/json",
-                    Authorization: `Bearer ${localStorage.getItem("token")}`,
-                  },
-                  body: JSON.stringify(testData),
-                });
-                const result = await response.json();
-                console.log("🧪 Test endpoint response:", result);
-              } catch (error) {
-                console.error("🧪 Test endpoint error:", error);
-              }
-            }}
-            className="p-2 text-purple-600 hover:text-purple-900 border border-purple-300 rounded-md"
-            title="Test Plot Numbers"
-          >
-            🧪
-          </button>
-        </div>
-      </div>
-
-      {/* Farm Stats */}
-      {selectedFarm && (
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-          <div className="bg-white dark:bg-gray-800 p-4 rounded-lg border border-gray-200 dark:border-gray-700">
-            <div className="flex items-center space-x-3">
-              <MapIcon className="text-green-600" size={20} />
-              <div>
-                <p className="text-sm text-gray-600 dark:text-gray-400">
-                  Total Area
-                </p>
-                <p className="font-semibold text-gray-900 dark:text-gray-100">
-                  {selectedFarm.totalSize} acres
-                </p>
-              </div>
-            </div>
-          </div>
-
-          <div className="bg-white dark:bg-gray-800 p-4 rounded-lg border border-gray-200 dark:border-gray-700">
-            <div className="flex items-center space-x-3">
-              <Grid3X3 className="text-blue-600" size={20} />
-              <div>
-                <p className="text-sm text-gray-600 dark:text-gray-400">
-                  Plot Count
-                </p>
-                <p className="font-semibold text-gray-900 dark:text-gray-100">
-                  {farmConfig.rows * farmConfig.cols} plots
-                </p>
-              </div>
-            </div>
-          </div>
-
-          <div className="bg-white dark:bg-gray-800 p-4 rounded-lg border border-gray-200 dark:border-gray-700">
-            <div className="flex items-center space-x-3">
-              <Leaf className="text-green-600" size={20} />
-              <div>
-                <p className="text-sm text-gray-600 dark:text-gray-400">
-                  Planted Plots
-                </p>
-                <p className="font-semibold text-gray-900 dark:text-gray-100">
-                  {
-                    farmData.filter(
-                      (plot) => plot.crop && plot.crop.name !== "Empty",
-                    ).length
-                  }{" "}
-                  of {farmData.length}
-                </p>
-              </div>
-            </div>
-          </div>
-
-          <div className="bg-white dark:bg-gray-800 p-4 rounded-lg border border-gray-200 dark:border-gray-700">
-            <div className="flex items-center space-x-3">
-              <AlertTriangle className="text-orange-600" size={20} />
-              <div>
-                <p className="text-sm text-gray-600 dark:text-gray-400">
-                  Issues
-                </p>
-                <p className="font-semibold text-gray-900 dark:text-gray-100">
-                  {
-                    farmData.filter(
-                      (plot) =>
-                        plot.crop?.health === "poor" ||
-                        plot.crop?.health === "critical",
-                    ).length
-                  }
-                </p>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-      <div className="flex justify-between items-center mb-4">
-        <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">
-          {selectedFarm?.name}
-        </h1>
-
-        {/* View Mode Selector */}
-        <div className="bg-gray-100 dark:bg-gray-800 p-1 rounded-lg flex space-x-1">
-          <button
-            onClick={() => setViewMode("crops")}
-            className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
-              viewMode === "crops"
-                ? "bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 shadow-sm"
-                : "text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200"
-            }`}
-          >
-            Crops
-          </button>
-          <button
-            onClick={() => setViewMode("health")}
-            className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
-              viewMode === "health"
-                ? "bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 shadow-sm"
-                : "text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200"
-            }`}
-          >
-            Health
-          </button>
-          <button
-            onClick={() => setViewMode("moisture")}
-            className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
-              viewMode === "moisture"
-                ? "bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 shadow-sm"
-                : "text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200"
-            }`}
-          >
-            Moisture
-          </button>
-        </div>
-      </div>
-
-      {/* Crop Distribution Statistics */}
-      <div className="mb-4 p-4 bg-gradient-to-r from-green-50 to-blue-50 dark:from-green-900/20 dark:to-blue-900/20 rounded-lg border border-gray-200 dark:border-gray-700">
-        <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3 flex items-center">
-          <BarChart3 className="w-4 h-4 mr-2" />
-          Crop Distribution
-        </h3>
-        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
-          {(() => {
-            const cropCounts =
-              selectedFarm?.plots.reduce(
-                (acc, plot) => {
-                  const cropName = plot.crop?.name || "Empty";
-                  acc[cropName] = (acc[cropName] || 0) + 1;
-                  return acc;
+            const cropData = {
+                crop: {
+                    name: bulkCropSelection,
+                    variety: "",
+                    plantedDate: plantedDate.toISOString(),
+                    expectedHarvestDate: expectedHarvestDate.toISOString(),
+                    stage: "planted" as const,
+                    health: "good" as const,
                 },
-                {} as Record<string, number>,
-              ) || {};
+            };
 
-            const totalPlots = selectedFarm?.plots.length || 0;
+            const response = await farmService.bulkUpdatePlots(
+                selectedFarm._id,
+                validPlotNumbers,
+                cropData,
+            );
 
-            return Object.entries(cropCounts)
-              .sort(([, a], [, b]) => b - a)
-              .map(([cropName, count]) => (
-                <div key={cropName} className="text-center">
-                  <div className="flex items-center justify-center mb-1">
-                    <div
-                      className={`w-3 h-3 rounded border-2 ${
-                        cropName === "Empty"
-                          ? "bg-gray-200 dark:bg-gray-600 border-gray-300 dark:border-gray-500"
-                          : getCropColor(cropName)
-                              .split(" ")
-                              .slice(0, 2)
-                              .join(" ")
-                      }`}
-                    ></div>
-                  </div>
-                  <div className="text-lg font-semibold text-gray-900 dark:text-gray-100">
-                    {count}
-                  </div>
-                  <div className="text-xs text-gray-600 dark:text-gray-300 truncate">
-                    {cropName}
-                  </div>
-                  <div className="text-xs text-gray-500 dark:text-gray-400">
-                    {((count / totalPlots) * 100).toFixed(0)}%
-                  </div>
+            if (response.success) {
+                // Clear selections immediately
+                setSelectedPlots(new Set());
+                setBulkCropSelection("");
+                setBulkSelectMode(false);
+
+                // Refresh data in background
+                await loadFarms(true);
+            } else {
+                console.error("Bulk planting failed:", response);
+                console.error(
+                    "Full error details:",
+                    JSON.stringify(response, null, 2),
+                );
+                if (response.errors && Array.isArray(response.errors)) {
+                    console.error("Individual errors:", response.errors);
+                    const errorMessages = response.errors
+                        .map((err) => err.msg || err.message)
+                        .join(", ");
+                    setError(`Validation failed: ${errorMessages}`);
+                } else {
+                    setError(
+                        response.message || "Failed to plant crops in bulk",
+                    );
+                }
+            }
+        } catch (err) {
+            console.error("Bulk plant crop error:", err);
+            setError("Failed to plant crops in bulk. Please try again.");
+        } finally {
+            setBulkOperationLoading(false);
+        }
+    };
+
+    const bulkClearPlots = async () => {
+        if (!selectedFarm || selectedPlots.size === 0) return;
+
+        try {
+            setBulkOperationLoading(true);
+            setError(null);
+
+            const plotNumbers = Array.from(selectedPlots);
+
+            // Ensure all plot numbers are valid integers
+            const validPlotNumbers = plotNumbers
+                .map((num) => Math.floor(Number(num)))
+                .filter((num) => Number.isInteger(num) && num > 0);
+
+            if (validPlotNumbers.length === 0) {
+                setError("Invalid plot numbers selected");
+                return;
+            }
+
+            const response = await farmService.bulkClearPlots(
+                selectedFarm._id,
+                validPlotNumbers,
+            );
+
+            if (response.success) {
+                // Clear selections immediately
+                setSelectedPlots(new Set());
+                setBulkSelectMode(false);
+
+                // Refresh data in background
+                await loadFarms(true);
+            } else {
+                console.error("Bulk clearing failed:", response);
+                console.error(
+                    "Full error details:",
+                    JSON.stringify(response, null, 2),
+                );
+                if (response.errors && Array.isArray(response.errors)) {
+                    console.error("Individual errors:", response.errors);
+                    const errorMessages = response.errors
+                        .map((err) => err.msg || err.message)
+                        .join(", ");
+                    setError(`Validation failed: ${errorMessages}`);
+                } else {
+                    setError(
+                        response.message || "Failed to clear plots in bulk",
+                    );
+                }
+            }
+        } catch (err) {
+            console.error("Bulk clear plots error:", err);
+            setError("Failed to clear plots in bulk. Please try again.");
+        } finally {
+            setBulkOperationLoading(false);
+        }
+    };
+
+    // Generate farm data based on current farm's plots
+    const generateFarmData = (rows: number, cols: number): PlotData[] => {
+        const newData: PlotData[] = [];
+        const totalPlots = rows * cols;
+        const calculatedPlotSize =
+            totalPlots > 0 ? farmConfig.totalAcres / totalPlots : 0.16;
+
+        for (let row = 0; row < rows; row++) {
+            for (let col = 0; col < cols; col++) {
+                const plotNumber = row * cols + col + 1;
+                const existingPlot = selectedFarm?.plots.find((plot) => {
+                    const backendPlotNumber = Math.floor(
+                        Number(plot.plotNumber),
+                    );
+                    return backendPlotNumber === plotNumber;
+                });
+
+                newData.push(
+                    existingPlot
+                        ? {
+                              ...existingPlot,
+                              plotNumber: Math.floor(
+                                  Number(existingPlot.plotNumber),
+                              ),
+                              size: calculatedPlotSize,
+                          }
+                        : {
+                              plotNumber: plotNumber,
+                              size: calculatedPlotSize,
+                              crop: {
+                                  name: "Empty",
+                                  stage: "fallow",
+                                  health: "good",
+                              },
+                              soilHealth: {
+                                  ph: 7.0,
+                                  moisture: 50,
+                                  recommendations: [],
+                              },
+                              irrigation: {
+                                  type: "manual",
+                                  schedule: {
+                                      frequency: 2,
+                                      duration: 30,
+                                      times: ["06:00", "18:00"],
+                                  },
+                              },
+                              pestAlerts: [],
+                              activities: [],
+                              isActive: true,
+                          },
+                );
+            }
+        }
+        return newData;
+    };
+
+    // Crop color mapping for different crop types
+    const getCropColor = (cropName: string): string => {
+        const cropColors: { [key: string]: string } = {
+            // Grains
+            Rice: "bg-yellow-100 dark:bg-yellow-900/30 border-yellow-400 dark:border-yellow-600 hover:bg-yellow-200 dark:hover:bg-yellow-900/50",
+            Wheat: "bg-amber-100 dark:bg-amber-900/30 border-amber-400 dark:border-amber-600 hover:bg-amber-200 dark:hover:bg-amber-900/50",
+            Corn: "bg-yellow-200 dark:bg-yellow-800/40 border-yellow-500 dark:border-yellow-600 hover:bg-yellow-300 dark:hover:bg-yellow-800/60",
+            Barley: "bg-orange-100 dark:bg-orange-900/30 border-orange-400 dark:border-orange-600 hover:bg-orange-200 dark:hover:bg-orange-900/50",
+            Millet: "bg-yellow-50 dark:bg-yellow-900/20 border-yellow-300 dark:border-yellow-700 hover:bg-yellow-100 dark:hover:bg-yellow-900/40",
+
+            // Vegetables
+            Tomato: "bg-red-100 dark:bg-red-900/30 border-red-400 dark:border-red-600 hover:bg-red-200 dark:hover:bg-red-900/50",
+            Potato: "bg-amber-50 dark:bg-amber-900/20 border-amber-300 dark:border-amber-700 hover:bg-amber-100 dark:hover:bg-amber-900/40",
+            Onion: "bg-purple-100 dark:bg-purple-900/30 border-purple-400 dark:border-purple-600 hover:bg-purple-200 dark:hover:bg-purple-900/50",
+            Carrot: "bg-orange-200 dark:bg-orange-800/40 border-orange-500 dark:border-orange-600 hover:bg-orange-300 dark:hover:bg-orange-800/60",
+            Cabbage:
+                "bg-green-100 dark:bg-green-900/30 border-green-400 dark:border-green-600 hover:bg-green-200 dark:hover:bg-green-900/50",
+            Lettuce:
+                "bg-green-50 dark:bg-green-900/20 border-green-300 dark:border-green-700 hover:bg-green-100 dark:hover:bg-green-900/40",
+            Spinach:
+                "bg-emerald-100 dark:bg-emerald-900/30 border-emerald-400 dark:border-emerald-600 hover:bg-emerald-200 dark:hover:bg-emerald-900/50",
+            Broccoli:
+                "bg-green-200 dark:bg-green-800/40 border-green-500 dark:border-green-600 hover:bg-green-300 dark:hover:bg-green-800/60",
+            Cauliflower:
+                "bg-gray-100 dark:bg-gray-800 border-gray-400 dark:border-gray-600 hover:bg-gray-200 dark:hover:bg-gray-700",
+            "Bell Pepper":
+                "bg-red-50 dark:bg-red-900/20 border-red-300 dark:border-red-700 hover:bg-red-100 dark:hover:bg-red-900/40",
+            Cucumber:
+                "bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-700 hover:bg-green-100 dark:hover:bg-green-900/40",
+            Eggplant:
+                "bg-purple-200 dark:bg-purple-800/40 border-purple-500 dark:border-purple-600 hover:bg-purple-300 dark:hover:bg-purple-800/60",
+
+            // Legumes
+            Soybean:
+                "bg-lime-100 dark:bg-lime-900/30 border-lime-400 dark:border-lime-600 hover:bg-lime-200 dark:hover:bg-lime-900/50",
+            Peas: "bg-green-100 dark:bg-green-900/30 border-green-300 dark:border-green-600 hover:bg-green-200 dark:hover:bg-green-900/50",
+            Beans: "bg-emerald-50 dark:bg-emerald-900/20 border-emerald-300 dark:border-emerald-700 hover:bg-emerald-100 dark:hover:bg-emerald-900/40",
+            Lentils:
+                "bg-orange-50 dark:bg-orange-900/20 border-orange-300 dark:border-orange-700 hover:bg-orange-100 dark:hover:bg-orange-900/40",
+            Chickpeas:
+                "bg-yellow-50 dark:bg-yellow-900/20 border-yellow-200 dark:border-yellow-700 hover:bg-yellow-100 dark:hover:bg-yellow-900/40",
+
+            // Fruits
+            Strawberry:
+                "bg-pink-100 dark:bg-pink-900/30 border-pink-400 dark:border-pink-600 hover:bg-pink-200 dark:hover:bg-pink-900/50",
+            Watermelon:
+                "bg-green-200 dark:bg-green-800/40 border-green-400 dark:border-green-600 hover:bg-green-300 dark:hover:bg-green-800/60",
+            Pumpkin:
+                "bg-orange-200 dark:bg-orange-800/40 border-orange-400 dark:border-orange-600 hover:bg-orange-300 dark:hover:bg-orange-800/60",
+            Melon: "bg-green-100 dark:bg-green-900/30 border-green-300 dark:border-green-600 hover:bg-green-200 dark:hover:bg-green-900/50",
+
+            // Cash crops
+            Cotton: "bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-600",
+            Sugarcane:
+                "bg-green-300 dark:bg-green-800/60 border-green-600 dark:border-green-500 hover:bg-green-400 dark:hover:bg-green-800/80",
+            Tobacco:
+                "bg-amber-200 dark:bg-amber-800/40 border-amber-500 dark:border-amber-600 hover:bg-amber-300 dark:hover:bg-amber-800/60",
+
+            // Herbs & Spices
+            Basil: "bg-green-100 dark:bg-green-900/30 border-green-300 dark:border-green-600 hover:bg-green-200 dark:hover:bg-green-900/50",
+            Mint: "bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-700 hover:bg-green-100 dark:hover:bg-green-900/40",
+            Cilantro:
+                "bg-emerald-50 dark:bg-emerald-900/20 border-emerald-200 dark:border-emerald-700 hover:bg-emerald-100 dark:hover:bg-emerald-900/40",
+            Parsley:
+                "bg-green-100 dark:bg-green-900/30 border-green-200 dark:border-green-600 hover:bg-green-200 dark:hover:bg-green-900/50",
+
+            // Oilseeds
+            Sunflower:
+                "bg-yellow-200 dark:bg-yellow-800/40 border-yellow-500 dark:border-yellow-600 hover:bg-yellow-300 dark:hover:bg-yellow-800/60",
+            Mustard:
+                "bg-yellow-100 dark:bg-yellow-900/30 border-yellow-300 dark:border-yellow-600 hover:bg-yellow-200 dark:hover:bg-yellow-900/50",
+            Sesame: "bg-orange-50 dark:bg-orange-900/20 border-orange-200 dark:border-orange-700 hover:bg-orange-100 dark:hover:bg-orange-900/40",
+        };
+
+        return (
+            cropColors[cropName] ||
+            "bg-blue-100 dark:bg-blue-900/30 border-blue-400 dark:border-blue-600 hover:bg-blue-200 dark:hover:bg-blue-900/50"
+        );
+    };
+
+    // Get plot color based on view mode
+    const getPlotColor = (plot: PlotData): string => {
+        switch (viewMode) {
+            case "crops":
+                if (!plot.crop || plot.crop.name === "Empty")
+                    return "bg-gray-200 dark:bg-gray-700 border-gray-300 dark:border-gray-600";
+                return getCropColor(plot.crop.name);
+
+            case "health":
+                if (!plot.crop || plot.crop.name === "Empty")
+                    return "bg-gray-200 dark:bg-gray-700 border-gray-300 dark:border-gray-600";
+                switch (plot.crop.health) {
+                    case "excellent":
+                        return "bg-green-200 dark:bg-green-800/40 border-green-400 dark:border-green-600";
+                    case "good":
+                        return "bg-green-100 dark:bg-green-900/30 border-green-300 dark:border-green-600";
+                    case "fair":
+                        return "bg-yellow-100 dark:bg-yellow-900/30 border-yellow-300 dark:border-yellow-600";
+                    case "poor":
+                        return "bg-orange-100 dark:bg-orange-900/30 border-orange-300 dark:border-orange-600";
+                    case "critical":
+                        return "bg-red-100 dark:bg-red-900/30 border-red-300 dark:border-red-600";
+                    default:
+                        return "bg-gray-200 dark:bg-gray-700 border-gray-300 dark:border-gray-600";
+                }
+
+            case "moisture": {
+                const moisture = plot.soilHealth.moisture || 0;
+                if (moisture >= 70)
+                    return "bg-blue-200 dark:bg-blue-800/40 border-blue-400 dark:border-blue-600";
+                if (moisture >= 40)
+                    return "bg-blue-100 dark:bg-blue-900/30 border-blue-300 dark:border-blue-600";
+                return "bg-red-100 dark:bg-red-900/30 border-red-300 dark:border-red-600";
+            }
+
+            default:
+                return "bg-gray-200 dark:bg-gray-700 border-gray-300 dark:border-gray-600";
+        }
+    };
+
+    // Generate crop suggestions based on plot conditions
+    const generateCropSuggestions = (plot: PlotData): CropSuggestion[] => {
+        const suggestions: CropSuggestion[] = [];
+        const moisture = plot.soilHealth.moisture || 50;
+        const ph = plot.soilHealth.ph || 7;
+
+        if (moisture >= 60) {
+            suggestions.push({
+                name: "Rice",
+                suitability: "High",
+                reason: "High soil moisture ideal for rice cultivation",
+                expectedYield: "40-50 quintals/hectare",
+                roi: "₹35,000-45,000",
+            });
+        }
+
+        if (ph >= 6 && ph <= 7.5) {
+            suggestions.push({
+                name: "Wheat",
+                suitability: "High",
+                reason: "Optimal pH range for wheat cultivation",
+                expectedYield: "35-45 quintals/hectare",
+                roi: "₹40,000-50,000",
+            });
+        }
+
+        if (moisture <= 40) {
+            suggestions.push({
+                name: "Mustard",
+                suitability: "Medium",
+                reason: "Drought tolerant crop suitable for low moisture",
+                expectedYield: "15-20 quintals/hectare",
+                roi: "₹25,000-35,000",
+            });
+        }
+
+        return suggestions;
+    };
+
+    const farmData = selectedFarm
+        ? generateFarmData(farmConfig.rows, farmConfig.cols)
+        : [];
+    const selectedPlotData =
+        selectedPlot !== null
+            ? farmData.find((p) => p.plotNumber === selectedPlot)
+            : null;
+    const cropSuggestions = selectedPlotData
+        ? generateCropSuggestions(selectedPlotData)
+        : [];
+
+    // Loading state
+    if (loading) {
+        return (
+            <div className="flex items-center justify-center min-h-96">
+                <div className="text-center">
+                    <Loader2 className="animate-spin h-8 w-8 text-green-600 mx-auto mb-4" />
+                    <p className="text-gray-600 dark:text-gray-400">
+                        Loading your farm data...
+                    </p>
                 </div>
-              ));
-          })()}
-        </div>
-      </div>
+            </div>
+        );
+    }
 
-      {/* Legends - Show different legends based on view mode */}
-      <div className="mb-4 p-4 bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700">
-        {viewMode === "crops" && (
-          <>
-            <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3 flex items-center">
-              <Leaf className="w-4 h-4 mr-2" />
-              Crop Color Legend
-            </h3>
-            <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-8 gap-2">
-              {(() => {
-                const activeCrops =
-                  selectedFarm?.plots
-                    ?.filter((plot) => plot.crop && plot.crop.name !== "Empty")
-                    ?.map((plot) => plot.crop!.name)
-                    ?.filter((crop, index, arr) => arr.indexOf(crop) === index)
-                    ?.sort() || [];
+    // Error state
+    if (error) {
+        return (
+            <div className="text-center py-12">
+                <AlertTriangle className="h-12 w-12 text-red-500 mx-auto mb-4" />
+                <h3 className="text-lg font-medium text-gray-900 dark:text-gray-100 mb-2">
+                    Farm Data Error
+                </h3>
+                <p className="text-gray-600 dark:text-gray-400 mb-4">{error}</p>
+                <button
+                    onClick={() => loadFarms()}
+                    className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 dark:bg-green-700 dark:hover:bg-green-800"
+                >
+                    Try Again
+                </button>
+            </div>
+        );
+    }
 
-                return activeCrops.map((cropName) => (
-                  <div
-                    key={cropName}
-                    className="flex items-center space-x-2 min-w-0"
-                  >
-                    <div
-                      className={`w-4 h-4 rounded border-2 flex-shrink-0 ${getCropColor(cropName).split(" ").slice(0, 2).join(" ")}`}
-                    ></div>
-                    <span className="text-xs text-gray-600 dark:text-gray-300 truncate font-medium">
-                      {cropName}
-                    </span>
-                  </div>
-                ));
-              })()}
-              {selectedFarm?.plots.some(
-                (plot) => !plot.crop || plot.crop.name === "Empty",
-              ) && (
-                <div className="flex items-center space-x-2 min-w-0">
-                  <div className="w-4 h-4 rounded border-2 bg-gray-200 dark:bg-gray-600 border-gray-300 dark:border-gray-500 flex-shrink-0"></div>
-                  <span className="text-xs text-gray-600 dark:text-gray-300 font-medium">
-                    Empty
-                  </span>
+    // No farms state
+    if (farms.length === 0) {
+        return (
+            <div className="text-center py-12">
+                <MapIcon className="h-16 w-16 text-gray-300 dark:text-gray-600 mx-auto mb-6" />
+                <h3 className="text-xl font-semibold text-gray-900 dark:text-gray-100 mb-2">
+                    No Farms Found
+                </h3>
+                <p className="text-gray-600 dark:text-gray-400 mb-6 max-w-md mx-auto">
+                    Create your first farm to start visualizing and managing
+                    your plots, crops, and activities.
+                </p>
+                <button
+                    onClick={createDefaultFarm}
+                    className="inline-flex items-center px-6 py-3 bg-green-600 text-white font-medium rounded-lg hover:bg-green-700 dark:bg-green-700 dark:hover:bg-green-800 transition-colors"
+                >
+                    <Plus className="w-5 h-5 mr-2" />
+                    Create Your First Farm
+                </button>
+            </div>
+        );
+    }
+
+    return (
+        <div className="space-y-6">
+            {/* Unified Header */}
+            <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm">
+                <div className="p-6">
+                    <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+                        <div className="flex-1">
+                            <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100 mb-2">
+                                {selectedFarm?.name || "Farm Visualization"}
+                            </h1>
+                            <p className="text-gray-600 dark:text-gray-400">
+                                Manage your plots and monitor crop health in
+                                real-time
+                            </p>
+                        </div>
+
+                        <div className="flex items-center flex-wrap gap-3">
+                            {/* Farm Selector */}
+                            {farms.length > 1 && (
+                                <select
+                                    value={selectedFarm?._id || ""}
+                                    onChange={(e) => {
+                                        const farm = farms.find(
+                                            (f) => f._id === e.target.value,
+                                        );
+                                        if (farm) {
+                                            setSelectedFarm(farm);
+                                            setSelectedPlot(null);
+                                            setError(null);
+                                        }
+                                    }}
+                                    className="px-4 py-2.5 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 hover:border-gray-400 dark:hover:border-gray-500 transition-colors"
+                                >
+                                    {farms.map((farm) => (
+                                        <option key={farm._id} value={farm._id}>
+                                            {farm.name} ({farm.totalSize} acres)
+                                        </option>
+                                    ))}
+                                </select>
+                            )}
+
+                            {/* View Mode Selector */}
+                            <div className="bg-gray-100 dark:bg-gray-700 p-1 rounded-lg flex space-x-1">
+                                <button
+                                    onClick={() => setViewMode("crops")}
+                                    className={`px-3 py-2 rounded-md text-sm font-medium transition-all ${
+                                        viewMode === "crops"
+                                            ? "bg-white dark:bg-gray-600 text-gray-900 dark:text-gray-100 shadow-sm"
+                                            : "text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200"
+                                    }`}
+                                >
+                                    Crops
+                                </button>
+                                <button
+                                    onClick={() => setViewMode("health")}
+                                    className={`px-3 py-2 rounded-md text-sm font-medium transition-all ${
+                                        viewMode === "health"
+                                            ? "bg-white dark:bg-gray-600 text-gray-900 dark:text-gray-100 shadow-sm"
+                                            : "text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200"
+                                    }`}
+                                >
+                                    Health
+                                </button>
+                                <button
+                                    onClick={() => setViewMode("moisture")}
+                                    className={`px-3 py-2 rounded-md text-sm font-medium transition-all ${
+                                        viewMode === "moisture"
+                                            ? "bg-white dark:bg-gray-600 text-gray-900 dark:text-gray-100 shadow-sm"
+                                            : "text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200"
+                                    }`}
+                                >
+                                    Moisture
+                                </button>
+                            </div>
+
+                            <button
+                                onClick={() => {
+                                    setError(null);
+                                    setShowFarmConfig(!showFarmConfig);
+                                }}
+                                className="p-2.5 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100 hover:bg-gray-100 dark:hover:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg transition-colors"
+                                title="Farm Configuration"
+                            >
+                                <Settings size={20} />
+                            </button>
+
+                            <button
+                                onClick={() => {
+                                    console.log("🔄 Manual refresh triggered");
+                                    setError(null);
+                                    loadFarms();
+                                }}
+                                className="p-2.5 text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 hover:bg-blue-50 dark:hover:bg-blue-900/20 border border-blue-300 dark:border-blue-600 rounded-lg transition-colors"
+                                title="Refresh Farm Data"
+                            >
+                                <RefreshCw size={20} />
+                            </button>
+                        </div>
+                    </div>
                 </div>
-              )}
-            </div>
-          </>
-        )}
 
-        {viewMode === "health" && (
-          <>
-            <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3 flex items-center">
-              <TrendingUp className="w-4 h-4 mr-2" />
-              Plant Health Legend
-            </h3>
-            <div className="grid grid-cols-3 md:grid-cols-6 gap-3">
-              <div className="flex items-center space-x-2">
-                <div className="w-4 h-4 rounded border-2 bg-green-200 dark:bg-green-800/40 border-green-400 dark:border-green-600"></div>
-                <span className="text-xs text-gray-600 dark:text-gray-300 font-medium">
-                  Excellent
-                </span>
-              </div>
-              <div className="flex items-center space-x-2">
-                <div className="w-4 h-4 rounded border-2 bg-green-100 dark:bg-green-900/30 border-green-300 dark:border-green-600"></div>
-                <span className="text-xs text-gray-600 dark:text-gray-300 font-medium">
-                  Good
-                </span>
-              </div>
-              <div className="flex items-center space-x-2">
-                <div className="w-4 h-4 rounded border-2 bg-yellow-100 dark:bg-yellow-900/30 border-yellow-300 dark:border-yellow-600"></div>
-                <span className="text-xs text-gray-600 dark:text-gray-300 font-medium">
-                  Fair
-                </span>
-              </div>
-              <div className="flex items-center space-x-2">
-                <div className="w-4 h-4 rounded border-2 bg-orange-100 dark:bg-orange-900/30 border-orange-300 dark:border-orange-600"></div>
-                <span className="text-xs text-gray-600 dark:text-gray-300 font-medium">
-                  Poor
-                </span>
-              </div>
-              <div className="flex items-center space-x-2">
-                <div className="w-4 h-4 rounded border-2 bg-red-100 dark:bg-red-900/30 border-red-300 dark:border-red-600"></div>
-                <span className="text-xs text-gray-600 dark:text-gray-300 font-medium">
-                  Critical
-                </span>
-              </div>
-              <div className="flex items-center space-x-2">
-                <div className="w-4 h-4 rounded border-2 bg-gray-200 dark:bg-gray-600 border-gray-300 dark:border-gray-500"></div>
-                <span className="text-xs text-gray-600 dark:text-gray-300 font-medium">
-                  Empty
-                </span>
-              </div>
-            </div>
-          </>
-        )}
+                {/* Farm Stats */}
+                {selectedFarm && (
+                    <div className="border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50 p-6">
+                        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                            <div className="bg-white dark:bg-gray-800 p-4 rounded-lg border border-gray-200 dark:border-gray-700 hover:shadow-md transition-shadow">
+                                <div className="flex items-center space-x-3">
+                                    <div className="p-2 bg-green-100 dark:bg-green-900/30 rounded-lg">
+                                        <MapIcon
+                                            className="text-green-600 dark:text-green-400"
+                                            size={24}
+                                        />
+                                    </div>
+                                    <div>
+                                        <p className="text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wide">
+                                            Total Area
+                                        </p>
+                                        <p className="text-xl font-bold text-gray-900 dark:text-gray-100">
+                                            {selectedFarm.totalSize}
+                                        </p>
+                                        <p className="text-xs text-gray-500 dark:text-gray-400">
+                                            acres
+                                        </p>
+                                    </div>
+                                </div>
+                            </div>
 
-        {viewMode === "moisture" && (
-          <>
-            <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3 flex items-center">
-              <Droplets className="w-4 h-4 mr-2" />
-              Soil Moisture Legend
-            </h3>
-            <div className="grid grid-cols-3 gap-3">
-              <div className="flex items-center space-x-2">
-                <div className="w-4 h-4 rounded border-2 bg-blue-200 dark:bg-blue-800/40 border-blue-400 dark:border-blue-600"></div>
-                <span className="text-xs text-gray-600 dark:text-gray-300 font-medium">
-                  High (70%+)
-                </span>
-              </div>
-              <div className="flex items-center space-x-2">
-                <div className="w-4 h-4 rounded border-2 bg-blue-100 dark:bg-blue-900/30 border-blue-300 dark:border-blue-600"></div>
-                <span className="text-xs text-gray-600 dark:text-gray-300 font-medium">
-                  Medium (40-70%)
-                </span>
-              </div>
-              <div className="flex items-center space-x-2">
-                <div className="w-4 h-4 rounded border-2 bg-red-100 dark:bg-red-900/30 border-red-300 dark:border-red-600"></div>
-                <span className="text-xs text-gray-600 dark:text-gray-300 font-medium">
-                  Low (&lt;40%)
-                </span>
-              </div>
-            </div>
-          </>
-        )}
-      </div>
+                            <div className="bg-white dark:bg-gray-800 p-4 rounded-lg border border-gray-200 dark:border-gray-700 hover:shadow-md transition-shadow">
+                                <div className="flex items-center space-x-3">
+                                    <div className="p-2 bg-blue-100 dark:bg-blue-900/30 rounded-lg">
+                                        <Grid3X3
+                                            className="text-blue-600 dark:text-blue-400"
+                                            size={24}
+                                        />
+                                    </div>
+                                    <div>
+                                        <p className="text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wide">
+                                            Total Plots
+                                        </p>
+                                        <p className="text-xl font-bold text-gray-900 dark:text-gray-100">
+                                            {farmConfig.rows * farmConfig.cols}
+                                        </p>
+                                        <p className="text-xs text-gray-500 dark:text-gray-400">
+                                            plots
+                                        </p>
+                                    </div>
+                                </div>
+                            </div>
 
-      {/* Main Farm View with Responsive Layout */}
-      <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
-        {/* Farm Grid - Takes 2 columns on desktop */}
-        <div className="xl:col-span-2">
-          <div className="bg-white dark:bg-gray-800 p-6 rounded-lg border border-gray-200 dark:border-gray-700">
-            <div className="mb-4 flex items-center justify-between">
-              <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
-                {selectedFarm?.name || "Farm Layout"}
-              </h3>
-              <div className="flex items-center space-x-2">
-                <button
-                  onClick={toggleBulkSelectMode}
-                  className={`px-3 py-2 text-sm rounded-md transition-colors ${
-                    bulkSelectMode
-                      ? "bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 hover:bg-blue-200 dark:hover:bg-blue-900/50"
-                      : "bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 hover:bg-purple-200 dark:hover:bg-purple-900/50"
-                  }`}
-                >
-                  {bulkSelectMode ? (
-                    <>
-                      <X className="w-4 h-4 mr-1 inline" />
-                      Cancel Selection
-                    </>
-                  ) : (
-                    <>
-                      <Users className="w-4 h-4 mr-1 inline" />
-                      Bulk Operations
-                    </>
-                  )}
-                </button>
-                <button
-                  onClick={() => setIsEditing(!isEditing)}
-                  className={`px-3 py-2 text-sm rounded-md transition-colors ${
-                    isEditing
-                      ? "bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 hover:bg-green-200 dark:hover:bg-green-900/50"
-                      : "bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600"
-                  }`}
-                  disabled={bulkSelectMode}
-                >
-                  {isEditing ? (
-                    <>
-                      <X className="w-4 h-4 mr-1 inline" />
-                      Cancel
-                    </>
-                  ) : (
-                    <>
-                      <Edit3 className="w-4 h-4 mr-1 inline" />
-                      Edit
-                    </>
-                  )}
-                </button>
-              </div>
+                            <div className="bg-white dark:bg-gray-800 p-4 rounded-lg border border-gray-200 dark:border-gray-700 hover:shadow-md transition-shadow">
+                                <div className="flex items-center space-x-3">
+                                    <div className="p-2 bg-green-100 dark:bg-green-900/30 rounded-lg">
+                                        <Leaf
+                                            className="text-green-600 dark:text-green-400"
+                                            size={24}
+                                        />
+                                    </div>
+                                    <div>
+                                        <p className="text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wide">
+                                            Planted
+                                        </p>
+                                        <p className="text-xl font-bold text-gray-900 dark:text-gray-100">
+                                            {
+                                                farmData.filter(
+                                                    (plot) =>
+                                                        plot.crop &&
+                                                        plot.crop.name !==
+                                                            "Empty",
+                                                ).length
+                                            }
+                                            <span className="text-sm text-gray-500 dark:text-gray-400">
+                                                /{farmData.length}
+                                            </span>
+                                        </p>
+                                        <p className="text-xs text-gray-500 dark:text-gray-400">
+                                            plots
+                                        </p>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div className="bg-white dark:bg-gray-800 p-4 rounded-lg border border-gray-200 dark:border-gray-700 hover:shadow-md transition-shadow">
+                                <div className="flex items-center space-x-3">
+                                    <div className="p-2 bg-orange-100 dark:bg-orange-900/30 rounded-lg">
+                                        <AlertTriangle
+                                            className="text-orange-600 dark:text-orange-400"
+                                            size={24}
+                                        />
+                                    </div>
+                                    <div>
+                                        <p className="text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wide">
+                                            Issues
+                                        </p>
+                                        <p className="text-xl font-bold text-gray-900 dark:text-gray-100">
+                                            {
+                                                farmData.filter(
+                                                    (plot) =>
+                                                        plot.crop?.health ===
+                                                            "poor" ||
+                                                        plot.crop?.health ===
+                                                            "critical",
+                                                ).length
+                                            }
+                                        </p>
+                                        <p className="text-xs text-gray-500 dark:text-gray-400">
+                                            alerts
+                                        </p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                )}
             </div>
 
-            {/* Mobile Grid - 2 columns */}
-            <div className="grid grid-cols-2 gap-4 max-w-sm mx-auto px-4 sm:hidden">
-              {farmData.map((plot) => (
-                <div
-                  key={`mobile-${plot.plotNumber}`}
-                  onClick={() => {
-                    const intPlotNumber = Math.floor(Number(plot.plotNumber));
-                    if (bulkSelectMode) {
-                      return togglePlotSelection(intPlotNumber);
-                    } else {
-                      setSelectedPlot(intPlotNumber);
-                      return;
-                    }
-                  }}
-                  className={`
+            {/* Crop Distribution & Legend Combined */}
+            <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm p-6">
+                <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4 flex items-center">
+                    <BarChart3 className="w-5 h-5 mr-2 text-green-600 dark:text-green-400" />
+                    Crop Distribution & Legend
+                </h3>
+                <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
+                    {(() => {
+                        const cropCounts =
+                            selectedFarm?.plots.reduce(
+                                (acc, plot) => {
+                                    const cropName = plot.crop?.name || "Empty";
+                                    acc[cropName] = (acc[cropName] || 0) + 1;
+                                    return acc;
+                                },
+                                {} as Record<string, number>,
+                            ) || {};
+
+                        const totalPlots = selectedFarm?.plots.length || 0;
+
+                        return Object.entries(cropCounts)
+                            .sort(([, a], [, b]) => b - a)
+                            .map(([cropName, count]) => (
+                                <div key={cropName} className="text-center">
+                                    <div className="flex items-center justify-center mb-1">
+                                        <div
+                                            className={`w-3 h-3 rounded border-2 ${
+                                                cropName === "Empty"
+                                                    ? "bg-gray-200 dark:bg-gray-600 border-gray-300 dark:border-gray-500"
+                                                    : getCropColor(cropName)
+                                                          .split(" ")
+                                                          .slice(0, 2)
+                                                          .join(" ")
+                                            }`}
+                                        ></div>
+                                    </div>
+                                    <div className="text-lg font-semibold text-gray-900 dark:text-gray-100">
+                                        {count}
+                                    </div>
+                                    <div className="text-xs text-gray-600 dark:text-gray-300 truncate">
+                                        {cropName}
+                                    </div>
+                                    <div className="text-xs text-gray-500 dark:text-gray-400">
+                                        {((count / totalPlots) * 100).toFixed(
+                                            0,
+                                        )}
+                                        %
+                                    </div>
+                                </div>
+                            ));
+                    })()}
+                </div>
+
+                {/* View Mode Legend */}
+                <div className="mt-6 pt-6 border-t border-gray-200 dark:border-gray-700">
+                    {viewMode === "crops" && (
+                        <>
+                            <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3 flex items-center">
+                                <Leaf className="w-4 h-4 mr-2" />
+                                Crop Color Legend
+                            </h3>
+                            <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-8 gap-2">
+                                {(() => {
+                                    const activeCrops =
+                                        selectedFarm?.plots
+                                            ?.filter(
+                                                (plot) =>
+                                                    plot.crop &&
+                                                    plot.crop.name !== "Empty",
+                                            )
+                                            ?.map((plot) => plot.crop!.name)
+                                            ?.filter(
+                                                (crop, index, arr) =>
+                                                    arr.indexOf(crop) === index,
+                                            )
+                                            ?.sort() || [];
+
+                                    return activeCrops.map((cropName) => (
+                                        <div
+                                            key={cropName}
+                                            className="flex items-center space-x-2 min-w-0"
+                                        >
+                                            <div
+                                                className={`w-4 h-4 rounded border-2 flex-shrink-0 ${getCropColor(cropName).split(" ").slice(0, 2).join(" ")}`}
+                                            ></div>
+                                            <span className="text-xs text-gray-600 dark:text-gray-300 truncate font-medium">
+                                                {cropName}
+                                            </span>
+                                        </div>
+                                    ));
+                                })()}
+                                {selectedFarm?.plots.some(
+                                    (plot) =>
+                                        !plot.crop ||
+                                        plot.crop.name === "Empty",
+                                ) && (
+                                    <div className="flex items-center space-x-2 min-w-0">
+                                        <div className="w-4 h-4 rounded border-2 bg-gray-200 dark:bg-gray-600 border-gray-300 dark:border-gray-500 flex-shrink-0"></div>
+                                        <span className="text-xs text-gray-600 dark:text-gray-300 font-medium">
+                                            Empty
+                                        </span>
+                                    </div>
+                                )}
+                            </div>
+                        </>
+                    )}
+
+                    {viewMode === "health" && (
+                        <>
+                            <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3 flex items-center">
+                                <TrendingUp className="w-4 h-4 mr-2" />
+                                Plant Health Legend
+                            </h3>
+                            <div className="grid grid-cols-3 md:grid-cols-6 gap-3">
+                                <div className="flex items-center space-x-2">
+                                    <div className="w-4 h-4 rounded border-2 bg-green-200 dark:bg-green-800/40 border-green-400 dark:border-green-600"></div>
+                                    <span className="text-xs text-gray-600 dark:text-gray-300 font-medium">
+                                        Excellent
+                                    </span>
+                                </div>
+                                <div className="flex items-center space-x-2">
+                                    <div className="w-4 h-4 rounded border-2 bg-green-100 dark:bg-green-900/30 border-green-300 dark:border-green-600"></div>
+                                    <span className="text-xs text-gray-600 dark:text-gray-300 font-medium">
+                                        Good
+                                    </span>
+                                </div>
+                                <div className="flex items-center space-x-2">
+                                    <div className="w-4 h-4 rounded border-2 bg-yellow-100 dark:bg-yellow-900/30 border-yellow-300 dark:border-yellow-600"></div>
+                                    <span className="text-xs text-gray-600 dark:text-gray-300 font-medium">
+                                        Fair
+                                    </span>
+                                </div>
+                                <div className="flex items-center space-x-2">
+                                    <div className="w-4 h-4 rounded border-2 bg-orange-100 dark:bg-orange-900/30 border-orange-300 dark:border-orange-600"></div>
+                                    <span className="text-xs text-gray-600 dark:text-gray-300 font-medium">
+                                        Poor
+                                    </span>
+                                </div>
+                                <div className="flex items-center space-x-2">
+                                    <div className="w-4 h-4 rounded border-2 bg-red-100 dark:bg-red-900/30 border-red-300 dark:border-red-600"></div>
+                                    <span className="text-xs text-gray-600 dark:text-gray-300 font-medium">
+                                        Critical
+                                    </span>
+                                </div>
+                                <div className="flex items-center space-x-2">
+                                    <div className="w-4 h-4 rounded border-2 bg-gray-200 dark:bg-gray-600 border-gray-300 dark:border-gray-500"></div>
+                                    <span className="text-xs text-gray-600 dark:text-gray-300 font-medium">
+                                        Empty
+                                    </span>
+                                </div>
+                            </div>
+                        </>
+                    )}
+
+                    {viewMode === "moisture" && (
+                        <>
+                            <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3 flex items-center">
+                                <Droplets className="w-4 h-4 mr-2" />
+                                Soil Moisture Legend
+                            </h3>
+                            <div className="grid grid-cols-3 gap-3">
+                                <div className="flex items-center space-x-2">
+                                    <div className="w-4 h-4 rounded border-2 bg-blue-200 dark:bg-blue-800/40 border-blue-400 dark:border-blue-600"></div>
+                                    <span className="text-xs text-gray-600 dark:text-gray-300 font-medium">
+                                        High (70%+)
+                                    </span>
+                                </div>
+                                <div className="flex items-center space-x-2">
+                                    <div className="w-4 h-4 rounded border-2 bg-blue-100 dark:bg-blue-900/30 border-blue-300 dark:border-blue-600"></div>
+                                    <span className="text-xs text-gray-600 dark:text-gray-300 font-medium">
+                                        Medium (40-70%)
+                                    </span>
+                                </div>
+                                <div className="flex items-center space-x-2">
+                                    <div className="w-4 h-4 rounded border-2 bg-red-100 dark:bg-red-900/30 border-red-300 dark:border-red-600"></div>
+                                    <span className="text-xs text-gray-600 dark:text-gray-300 font-medium">
+                                        Low (&lt;40%)
+                                    </span>
+                                </div>
+                            </div>
+                        </>
+                    )}
+                </div>
+            </div>
+
+            {/* Main Farm View with Responsive Layout */}
+            <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
+                {/* Farm Grid - Takes 2 columns on desktop */}
+                <div className="xl:col-span-2">
+                    <div className="bg-white dark:bg-gray-800 p-6 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm">
+                        <div className="mb-4 flex items-center justify-between">
+                            <h3 className="text-xl font-semibold text-gray-900 dark:text-gray-100">
+                                Farm Layout
+                            </h3>
+                            <div className="flex items-center space-x-2">
+                                <button
+                                    onClick={toggleBulkSelectMode}
+                                    className={`px-4 py-2 text-sm font-medium rounded-lg transition-all ${
+                                        bulkSelectMode
+                                            ? "bg-blue-600 dark:bg-blue-600 text-white hover:bg-blue-700 dark:hover:bg-blue-700 shadow-md"
+                                            : "bg-purple-600 dark:bg-purple-600 text-white hover:bg-purple-700 dark:hover:bg-purple-700 shadow-md"
+                                    }`}
+                                >
+                                    {bulkSelectMode ? (
+                                        <>
+                                            <X className="w-4 h-4 mr-1 inline" />
+                                            Cancel Selection
+                                        </>
+                                    ) : (
+                                        <>
+                                            <Users className="w-4 h-4 mr-1 inline" />
+                                            Bulk Operations
+                                        </>
+                                    )}
+                                </button>
+                                <button
+                                    onClick={() => setIsEditing(!isEditing)}
+                                    className={`px-4 py-2 text-sm font-medium rounded-lg transition-all ${
+                                        isEditing
+                                            ? "bg-green-600 dark:bg-green-600 text-white hover:bg-green-700 dark:hover:bg-green-700 shadow-md"
+                                            : "bg-gray-600 dark:bg-gray-600 text-white hover:bg-gray-700 dark:hover:bg-gray-700 shadow-md"
+                                    }`}
+                                    disabled={bulkSelectMode}
+                                >
+                                    {isEditing ? (
+                                        <>
+                                            <X className="w-4 h-4 mr-1 inline" />
+                                            Cancel
+                                        </>
+                                    ) : (
+                                        <>
+                                            <Edit3 className="w-4 h-4 mr-1 inline" />
+                                            Edit
+                                        </>
+                                    )}
+                                </button>
+                            </div>
+                        </div>
+
+                        {/* Mobile Grid - 2 columns */}
+                        <div className="grid grid-cols-2 gap-4 max-w-sm mx-auto px-4 sm:hidden">
+                            {farmData.map((plot) => (
+                                <div
+                                    key={`mobile-${plot.plotNumber}`}
+                                    onClick={() => {
+                                        const intPlotNumber = Math.floor(
+                                            Number(plot.plotNumber),
+                                        );
+                                        if (bulkSelectMode) {
+                                            return togglePlotSelection(
+                                                intPlotNumber,
+                                            );
+                                        } else {
+                                            setSelectedPlot(intPlotNumber);
+                                            return;
+                                        }
+                                    }}
+                                    className={`
                     aspect-square border-2 rounded-xl cursor-pointer transition-all duration-200
                     flex flex-col items-center justify-center p-3 text-center relative
                     min-h-[120px] touch-manipulation
@@ -1359,61 +1527,72 @@ const FarmVisualization: React.FC = () => {
                     ${selectedPlots.has(Math.floor(Number(plot.plotNumber))) ? "ring-4 ring-blue-500 ring-offset-2 bg-blue-50 dark:bg-blue-900/40" : ""}
                     ${isEditing || bulkSelectMode ? "hover:scale-105 active:scale-95" : ""}
                   `}
-                >
-                  {bulkSelectMode && (
-                    <div className="absolute top-2 right-2 p-1">
-                      {selectedPlots.has(
-                        Math.floor(Number(plot.plotNumber)),
-                      ) ? (
-                        <CheckSquare className="w-6 h-6 text-blue-600" />
-                      ) : (
-                        <Square className="w-6 h-6 text-gray-400" />
-                      )}
-                    </div>
-                  )}
-                  <div className="text-sm font-bold text-gray-800 dark:text-gray-200 mb-2">
-                    {plot.plotNumber}
-                  </div>
-                  <div
-                    className={`text-sm font-semibold w-full px-2 py-1 rounded-md ${
-                      plot.crop?.name && plot.crop.name !== "Empty"
-                        ? "text-gray-800 dark:text-gray-200 bg-white/80 dark:bg-gray-900/80 backdrop-blur-sm"
-                        : "text-gray-500 dark:text-gray-400"
-                    }`}
-                    title={plot.crop?.name || "Empty"}
-                  >
-                    {plot.crop?.name || "Empty"}
-                  </div>
-                  {plot.crop?.stage && plot.crop.name !== "Empty" && (
-                    <div className="text-xs text-gray-600 dark:text-gray-400 mt-1 capitalize px-2 py-0.5 bg-white/60 dark:bg-gray-900/60 rounded">
-                      {plot.crop.stage.replace("_", " ")}
-                    </div>
-                  )}
-                </div>
-              ))}
-            </div>
+                                >
+                                    {bulkSelectMode && (
+                                        <div className="absolute top-2 right-2 p-1">
+                                            {selectedPlots.has(
+                                                Math.floor(
+                                                    Number(plot.plotNumber),
+                                                ),
+                                            ) ? (
+                                                <CheckSquare className="w-6 h-6 text-blue-600" />
+                                            ) : (
+                                                <Square className="w-6 h-6 text-gray-400" />
+                                            )}
+                                        </div>
+                                    )}
+                                    <div className="text-sm font-bold text-gray-800 dark:text-gray-200 mb-2">
+                                        {plot.plotNumber}
+                                    </div>
+                                    <div
+                                        className={`text-sm font-semibold w-full px-2 py-1 rounded-md ${
+                                            plot.crop?.name &&
+                                            plot.crop.name !== "Empty"
+                                                ? "text-gray-800 dark:text-gray-200 bg-white/80 dark:bg-gray-900/80 backdrop-blur-sm"
+                                                : "text-gray-500 dark:text-gray-400"
+                                        }`}
+                                        title={plot.crop?.name || "Empty"}
+                                    >
+                                        {plot.crop?.name || "Empty"}
+                                    </div>
+                                    {plot.crop?.stage &&
+                                        plot.crop.name !== "Empty" && (
+                                            <div className="text-xs text-gray-600 dark:text-gray-400 mt-1 capitalize px-2 py-0.5 bg-white/60 dark:bg-gray-900/60 rounded">
+                                                {plot.crop.stage.replace(
+                                                    "_",
+                                                    " ",
+                                                )}
+                                            </div>
+                                        )}
+                                </div>
+                            ))}
+                        </div>
 
-            {/* Desktop Grid - Original layout */}
-            <div
-              className="hidden sm:grid gap-3 max-w-4xl mx-auto"
-              style={{
-                gridTemplateColumns: `repeat(${farmConfig.cols}, minmax(0, 1fr))`,
-              }}
-            >
-              {farmData.map((plot) => (
-                <div
-                  key={plot.plotNumber}
-                  onClick={() => {
-                    const intPlotNumber = Math.floor(Number(plot.plotNumber));
-                    if (bulkSelectMode) {
-                      return togglePlotSelection(intPlotNumber);
-                    } else {
-                      // Ensure selectedPlot is always an integer
-                      setSelectedPlot(intPlotNumber);
-                      return;
-                    }
-                  }}
-                  className={`
+                        {/* Desktop Grid - Original layout */}
+                        <div
+                            className="hidden sm:grid gap-3 max-w-4xl mx-auto"
+                            style={{
+                                gridTemplateColumns: `repeat(${farmConfig.cols}, minmax(0, 1fr))`,
+                            }}
+                        >
+                            {farmData.map((plot) => (
+                                <div
+                                    key={plot.plotNumber}
+                                    onClick={() => {
+                                        const intPlotNumber = Math.floor(
+                                            Number(plot.plotNumber),
+                                        );
+                                        if (bulkSelectMode) {
+                                            return togglePlotSelection(
+                                                intPlotNumber,
+                                            );
+                                        } else {
+                                            // Ensure selectedPlot is always an integer
+                                            setSelectedPlot(intPlotNumber);
+                                            return;
+                                        }
+                                    }}
+                                    className={`
                     aspect-square border-2 rounded-xl cursor-pointer transition-all duration-200
                     flex flex-col items-center justify-center p-3 sm:p-4 text-center relative
                     min-h-[120px] sm:min-h-[140px] touch-manipulation
@@ -1422,1038 +1601,1265 @@ const FarmVisualization: React.FC = () => {
                     ${selectedPlots.has(Math.floor(Number(plot.plotNumber))) ? "ring-4 ring-blue-500 ring-offset-2 bg-blue-50 dark:bg-blue-900/40" : ""}
                     ${isEditing || bulkSelectMode ? "hover:scale-105 active:scale-95" : ""}
                   `}
-                >
-                  {bulkSelectMode && (
-                    <div className="absolute top-2 right-2 p-1">
-                      {selectedPlots.has(
-                        Math.floor(Number(plot.plotNumber)),
-                      ) ? (
-                        <CheckSquare className="w-6 h-6 text-blue-600" />
-                      ) : (
-                        <Square className="w-6 h-6 text-gray-400" />
-                      )}
+                                >
+                                    {bulkSelectMode && (
+                                        <div className="absolute top-2 right-2 p-1">
+                                            {selectedPlots.has(
+                                                Math.floor(
+                                                    Number(plot.plotNumber),
+                                                ),
+                                            ) ? (
+                                                <CheckSquare className="w-6 h-6 text-blue-600" />
+                                            ) : (
+                                                <Square className="w-6 h-6 text-gray-400" />
+                                            )}
+                                        </div>
+                                    )}
+                                    <div className="text-sm font-bold text-gray-800 dark:text-gray-200 mb-2">
+                                        {plot.plotNumber}
+                                    </div>
+                                    <div
+                                        className={`text-sm font-semibold w-full px-2 py-1 rounded-md ${
+                                            plot.crop?.name &&
+                                            plot.crop.name !== "Empty"
+                                                ? "text-gray-800 dark:text-gray-200 bg-white/80 dark:bg-gray-900/80 backdrop-blur-sm"
+                                                : "text-gray-500 dark:text-gray-400"
+                                        }`}
+                                        title={plot.crop?.name || "Empty"}
+                                    >
+                                        {plot.crop?.name || "Empty"}
+                                    </div>
+                                    {plot.crop?.stage &&
+                                        plot.crop.name !== "Empty" && (
+                                            <div className="text-xs text-gray-600 dark:text-gray-400 mt-1 capitalize px-2 py-0.5 bg-white/60 dark:bg-gray-900/60 rounded">
+                                                {plot.crop.stage.replace(
+                                                    "_",
+                                                    " ",
+                                                )}
+                                            </div>
+                                        )}
+                                    <div className="flex items-center justify-center mt-1 space-x-1">
+                                        {plot.pestAlerts.some(
+                                            (alert) =>
+                                                alert.status === "active",
+                                        ) && (
+                                            <div
+                                                className="w-2 h-2 bg-red-500 rounded-full"
+                                                title="Pest Alert"
+                                            ></div>
+                                        )}
+                                        {plot.crop?.health &&
+                                            plot.crop.health !== "good" &&
+                                            plot.crop.health !== "excellent" &&
+                                            plot.crop.name !== "Empty" && (
+                                                <div
+                                                    className={`w-2 h-2 rounded-full ${
+                                                        plot.crop.health ===
+                                                        "fair"
+                                                            ? "bg-yellow-500"
+                                                            : plot.crop
+                                                                    .health ===
+                                                                "poor"
+                                                              ? "bg-orange-500"
+                                                              : plot.crop
+                                                                      .health ===
+                                                                  "critical"
+                                                                ? "bg-red-600"
+                                                                : ""
+                                                    }`}
+                                                    title={`Health: ${plot.crop.health}`}
+                                                ></div>
+                                            )}
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
                     </div>
-                  )}
-                  <div className="text-sm font-bold text-gray-800 dark:text-gray-200 mb-2">
-                    {plot.plotNumber}
-                  </div>
-                  <div
-                    className={`text-sm font-semibold w-full px-2 py-1 rounded-md ${
-                      plot.crop?.name && plot.crop.name !== "Empty"
-                        ? "text-gray-800 dark:text-gray-200 bg-white/80 dark:bg-gray-900/80 backdrop-blur-sm"
-                        : "text-gray-500 dark:text-gray-400"
-                    }`}
-                    title={plot.crop?.name || "Empty"}
-                  >
-                    {plot.crop?.name || "Empty"}
-                  </div>
-                  {plot.crop?.stage && plot.crop.name !== "Empty" && (
-                    <div className="text-xs text-gray-600 dark:text-gray-400 mt-1 capitalize px-2 py-0.5 bg-white/60 dark:bg-gray-900/60 rounded">
-                      {plot.crop.stage.replace("_", " ")}
+                </div>
+
+                {/* Plot Details Sidebar */}
+                <div className="xl:col-span-1">
+                    {bulkSelectMode && selectedPlots.size === 0 ? (
+                        /* Simplified Bulk Actions */
+                        <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm p-8 text-center">
+                            <div className="w-20 h-20 bg-blue-100 dark:bg-blue-900/30 rounded-full flex items-center justify-center mx-auto mb-4">
+                                <Target className="w-10 h-10 text-blue-600 dark:text-blue-400" />
+                            </div>
+                            <h3 className="text-2xl font-bold text-gray-900 dark:text-gray-100 mb-2">
+                                Select Plots
+                            </h3>
+                            <p className="text-gray-600 dark:text-gray-400 mb-8 text-base">
+                                Click on plots in the grid to select them for
+                                bulk operations
+                            </p>
+                            <div className="space-y-3">
+                                <button
+                                    onClick={selectAllPlots}
+                                    className="w-full px-6 py-3 bg-blue-600 text-white font-semibold rounded-lg hover:bg-blue-700 dark:bg-blue-700 dark:hover:bg-blue-800 transition-all shadow-md hover:shadow-lg"
+                                >
+                                    Select All Plots
+                                </button>
+                                <button
+                                    onClick={toggleBulkSelectMode}
+                                    className="w-full px-6 py-3 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 font-medium rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
+                                >
+                                    Cancel
+                                </button>
+                            </div>
+                        </div>
+                    ) : !bulkSelectMode && selectedPlotData ? (
+                        <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 shadow-lg overflow-hidden sticky top-4">
+                            <div className="bg-gradient-to-r from-green-500 to-green-600 dark:from-green-600 dark:to-green-700 px-5 py-4">
+                                <div className="flex items-center justify-between">
+                                    <div>
+                                        <h3 className="text-xl font-bold text-white mb-1">
+                                            Plot {selectedPlotData.plotNumber}
+                                        </h3>
+                                        <p className="text-green-100 text-sm">
+                                            {selectedPlotData.size.toFixed(2)}{" "}
+                                            acres
+                                        </p>
+                                    </div>
+                                    <button
+                                        onClick={() => setSelectedPlot(null)}
+                                        className="p-2 text-white/80 hover:text-white hover:bg-white/20 rounded-lg transition-all xl:hidden"
+                                    >
+                                        <X size={20} />
+                                    </button>
+                                </div>
+                            </div>
+
+                            <div className="p-5 max-h-[calc(100vh-200px)] overflow-y-auto space-y-4">
+                                {/* Crop Information Card */}
+                                <div className="bg-gradient-to-br from-green-50 to-emerald-50 dark:from-green-900/20 dark:to-emerald-900/20 rounded-xl p-4 border border-green-200 dark:border-green-800">
+                                    <div className="flex items-center mb-3">
+                                        <div className="w-8 h-8 bg-green-500 dark:bg-green-600 rounded-lg flex items-center justify-center mr-3">
+                                            <Leaf className="w-4 h-4 text-white" />
+                                        </div>
+                                        <h4 className="font-semibold text-gray-900 dark:text-gray-100 text-lg">
+                                            Crop Details
+                                        </h4>
+                                    </div>
+                                    <div className="space-y-3">
+                                        {isEditing &&
+                                        editingPlot ===
+                                            selectedPlotData.plotNumber ? (
+                                            <div className="space-y-3">
+                                                {/* Enhanced Crop Selector */}
+                                                <div>
+                                                    <label className="block text-xs font-medium text-green-600 dark:text-green-400 uppercase tracking-wide mb-2">
+                                                        <Sprout className="w-3 h-3 inline mr-1" />
+                                                        Select Crop
+                                                    </label>
+                                                    <select
+                                                        value={
+                                                            selectedPlotData
+                                                                .crop?.name ||
+                                                            "Empty"
+                                                        }
+                                                        onChange={(e) =>
+                                                            updatePlotCrop(
+                                                                selectedPlotData.plotNumber,
+                                                                e.target.value,
+                                                            )
+                                                        }
+                                                        className="w-full px-4 py-3 border-2 border-green-300 dark:border-green-600 rounded-lg text-sm font-medium bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 hover:border-green-400 dark:hover:border-green-500 focus:ring-2 focus:ring-green-500 focus:border-green-500 transition-all cursor-pointer shadow-sm"
+                                                    >
+                                                        {availableCrops.map(
+                                                            (crop) => (
+                                                                <option
+                                                                    key={crop}
+                                                                    value={crop}
+                                                                    className="py-2"
+                                                                >
+                                                                    {crop ===
+                                                                    "Empty"
+                                                                        ? "🌱 "
+                                                                        : "🌾 "}
+                                                                    {crop}
+                                                                </option>
+                                                            ),
+                                                        )}
+                                                    </select>
+                                                </div>
+
+                                                {/* Growth Stage Selector - Only show if crop is not Empty */}
+                                                {selectedPlotData.crop?.name !==
+                                                    "Empty" && (
+                                                    <div>
+                                                        <label className="block text-xs font-medium text-green-600 dark:text-green-400 uppercase tracking-wide mb-2">
+                                                            <Target className="w-3 h-3 inline mr-1" />
+                                                            Growth Stage
+                                                        </label>
+                                                        <select
+                                                            value={
+                                                                selectedPlotData
+                                                                    .crop
+                                                                    ?.stage ||
+                                                                "planted"
+                                                            }
+                                                            onChange={(e) =>
+                                                                updatePlotGrowthStage(
+                                                                    selectedPlotData.plotNumber,
+                                                                    e.target
+                                                                        .value as
+                                                                        | "planted"
+                                                                        | "growing"
+                                                                        | "flowering"
+                                                                        | "ready_to_harvest"
+                                                                        | "harvested"
+                                                                        | "fallow",
+                                                                )
+                                                            }
+                                                            className="w-full px-4 py-3 border-2 border-green-300 dark:border-green-600 rounded-lg text-sm font-medium bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 hover:border-green-400 dark:hover:border-green-500 focus:ring-2 focus:ring-green-500 focus:border-green-500 transition-all cursor-pointer shadow-sm"
+                                                        >
+                                                            <option value="planted">
+                                                                🌱 Planted
+                                                            </option>
+                                                            <option value="growing">
+                                                                🌿 Growing
+                                                            </option>
+                                                            <option value="flowering">
+                                                                🌸 Flowering
+                                                            </option>
+                                                            <option value="ready_to_harvest">
+                                                                🌾 Ready to
+                                                                Harvest
+                                                            </option>
+                                                            <option value="harvested">
+                                                                📦 Harvested
+                                                            </option>
+                                                            <option value="fallow">
+                                                                🍂 Fallow
+                                                            </option>
+                                                        </select>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        ) : (
+                                            <div className="bg-white dark:bg-gray-800 p-4 rounded-lg border border-green-200 dark:border-green-700">
+                                                <p className="text-xs font-medium text-green-600 dark:text-green-400 uppercase tracking-wide mb-1">
+                                                    Current Crop
+                                                </p>
+                                                <p className="text-lg font-bold text-gray-900 dark:text-gray-100">
+                                                    {selectedPlotData.crop
+                                                        ?.name ||
+                                                        "No crop planted"}
+                                                </p>
+                                                {isEditing && (
+                                                    <button
+                                                        onClick={() =>
+                                                            setEditingPlot(
+                                                                selectedPlotData.plotNumber,
+                                                            )
+                                                        }
+                                                        className="mt-2 px-3 py-1.5 text-xs font-medium text-white bg-green-600 hover:bg-green-700 rounded-md transition-colors"
+                                                    >
+                                                        ✏️ Edit Crop
+                                                    </button>
+                                                )}
+                                            </div>
+                                        )}
+
+                                        {selectedPlotData.crop?.name !==
+                                            "Empty" && (
+                                            <div className="grid grid-cols-2 gap-3">
+                                                <div className="bg-white dark:bg-gray-800 p-3 rounded-lg border border-green-200 dark:border-green-700">
+                                                    <p className="text-xs font-medium text-green-600 dark:text-green-400 uppercase tracking-wide mb-1">
+                                                        Growth Stage
+                                                    </p>
+                                                    <p className="text-sm font-semibold text-gray-900 dark:text-gray-100 capitalize flex items-center gap-1">
+                                                        {selectedPlotData.crop
+                                                            ?.stage ===
+                                                            "planted" && "🌱"}
+                                                        {selectedPlotData.crop
+                                                            ?.stage ===
+                                                            "growing" && "🌿"}
+                                                        {selectedPlotData.crop
+                                                            ?.stage ===
+                                                            "flowering" && "🌸"}
+                                                        {selectedPlotData.crop
+                                                            ?.stage ===
+                                                            "ready_to_harvest" &&
+                                                            "🌾"}
+                                                        {selectedPlotData.crop
+                                                            ?.stage ===
+                                                            "harvested" && "📦"}
+                                                        {selectedPlotData.crop
+                                                            ?.stage ===
+                                                            "fallow" && "🍂"}
+                                                        {selectedPlotData.crop?.stage.replace(
+                                                            "_",
+                                                            " ",
+                                                        )}
+                                                    </p>
+                                                </div>
+                                                <div className="bg-white dark:bg-gray-800 p-3 rounded-lg border border-green-200 dark:border-green-700">
+                                                    <p className="text-xs font-medium text-green-600 dark:text-green-400 uppercase tracking-wide mb-2">
+                                                        Health Status
+                                                    </p>
+                                                    <span
+                                                        className={`inline-flex px-3 py-1 text-xs font-bold rounded-full capitalize ${
+                                                            selectedPlotData
+                                                                .crop
+                                                                ?.health ===
+                                                            "excellent"
+                                                                ? "bg-green-100 dark:bg-green-900/40 text-green-800 dark:text-green-300"
+                                                                : selectedPlotData
+                                                                        .crop
+                                                                        ?.health ===
+                                                                    "good"
+                                                                  ? "bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-300"
+                                                                  : selectedPlotData
+                                                                          .crop
+                                                                          ?.health ===
+                                                                      "fair"
+                                                                    ? "bg-yellow-100 dark:bg-yellow-900/40 text-yellow-800 dark:text-yellow-300"
+                                                                    : selectedPlotData
+                                                                            .crop
+                                                                            ?.health ===
+                                                                        "poor"
+                                                                      ? "bg-orange-100 dark:bg-orange-900/40 text-orange-800 dark:text-orange-300"
+                                                                      : "bg-red-100 dark:bg-red-900/40 text-red-800 dark:text-red-300"
+                                                        }`}
+                                                    >
+                                                        {
+                                                            selectedPlotData
+                                                                .crop?.health
+                                                        }
+                                                    </span>
+                                                </div>
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+
+                                {/* Performance Metrics Card */}
+                                <div className="bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 rounded-xl p-4 border border-blue-200 dark:border-blue-800">
+                                    <div className="flex items-center mb-3">
+                                        <div className="w-8 h-8 bg-blue-500 dark:bg-blue-600 rounded-lg flex items-center justify-center mr-3">
+                                            <TrendingUp className="w-4 h-4 text-white" />
+                                        </div>
+                                        <h4 className="font-semibold text-gray-900 dark:text-gray-100 text-lg">
+                                            Performance
+                                        </h4>
+                                    </div>
+                                    <div className="grid grid-cols-2 gap-3">
+                                        <div className="bg-white dark:bg-gray-800 p-4 rounded-lg border border-blue-200 dark:border-blue-700">
+                                            <p className="text-xs font-medium text-blue-600 dark:text-blue-400 uppercase tracking-wide mb-1">
+                                                Expected Yield
+                                            </p>
+                                            <p className="text-lg font-bold text-gray-900 dark:text-gray-100">
+                                                N/A
+                                            </p>
+                                        </div>
+                                        <div className="bg-white dark:bg-gray-800 p-4 rounded-lg border border-blue-200 dark:border-blue-700">
+                                            <p className="text-xs font-medium text-blue-600 dark:text-blue-400 uppercase tracking-wide mb-1">
+                                                Plot Size
+                                            </p>
+                                            <p className="text-lg font-bold text-gray-900 dark:text-gray-100">
+                                                {selectedPlotData.size.toFixed(
+                                                    2,
+                                                )}
+                                            </p>
+                                            <p className="text-xs text-gray-500 dark:text-gray-400">
+                                                acres
+                                            </p>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* Soil Health Card */}
+                                <div className="bg-gradient-to-br from-cyan-50 to-blue-50 dark:from-cyan-900/20 dark:to-blue-900/20 rounded-xl p-4 border border-cyan-200 dark:border-cyan-800">
+                                    <div className="flex items-center mb-3">
+                                        <div className="w-8 h-8 bg-cyan-500 dark:bg-cyan-600 rounded-lg flex items-center justify-center mr-3">
+                                            <Droplets className="w-4 h-4 text-white" />
+                                        </div>
+                                        <h4 className="font-semibold text-gray-900 dark:text-gray-100 text-lg">
+                                            Soil Health
+                                        </h4>
+                                    </div>
+                                    <div className="space-y-3">
+                                        <div className="bg-white dark:bg-gray-800 p-4 rounded-lg border border-cyan-200 dark:border-cyan-700">
+                                            <div className="flex items-center justify-between mb-2">
+                                                <p className="text-xs font-medium text-cyan-600 dark:text-cyan-400 uppercase tracking-wide">
+                                                    pH Level
+                                                </p>
+                                                <span
+                                                    className={`px-3 py-1 text-xs font-bold rounded-full ${
+                                                        selectedPlotData
+                                                            .soilHealth.ph
+                                                            ? selectedPlotData
+                                                                  .soilHealth
+                                                                  .ph < 6.5
+                                                                ? "bg-red-100 text-red-700"
+                                                                : selectedPlotData
+                                                                        .soilHealth
+                                                                        .ph >
+                                                                    7.5
+                                                                  ? "bg-orange-100 text-orange-700"
+                                                                  : "bg-green-100 text-green-700"
+                                                            : "bg-gray-100 text-gray-600"
+                                                    }`}
+                                                >
+                                                    {selectedPlotData.soilHealth
+                                                        .ph
+                                                        ? selectedPlotData
+                                                              .soilHealth.ph <
+                                                          6.5
+                                                            ? "Acidic"
+                                                            : selectedPlotData
+                                                                    .soilHealth
+                                                                    .ph > 7.5
+                                                              ? "Alkaline"
+                                                              : "Optimal"
+                                                        : "Unknown"}
+                                                </span>
+                                            </div>
+                                            <p className="text-2xl font-bold text-gray-900 dark:text-gray-100">
+                                                {selectedPlotData.soilHealth.ph?.toFixed(
+                                                    1,
+                                                ) || "7.0"}
+                                            </p>
+                                        </div>
+
+                                        <div className="bg-white dark:bg-gray-800 p-4 rounded-lg border border-cyan-200 dark:border-cyan-700">
+                                            <div className="flex items-center justify-between mb-2">
+                                                <p className="text-xs font-medium text-cyan-600 dark:text-cyan-400 uppercase tracking-wide">
+                                                    Moisture Level
+                                                </p>
+                                                <span
+                                                    className={`px-3 py-1 text-xs font-bold rounded-full ${
+                                                        (selectedPlotData
+                                                            .soilHealth
+                                                            .moisture || 50) >=
+                                                        70
+                                                            ? "bg-blue-100 text-blue-700"
+                                                            : (selectedPlotData
+                                                                    .soilHealth
+                                                                    .moisture ||
+                                                                    50) >= 40
+                                                              ? "bg-green-100 text-green-700"
+                                                              : "bg-red-100 text-red-700"
+                                                    }`}
+                                                >
+                                                    {(selectedPlotData
+                                                        .soilHealth.moisture ||
+                                                        50) >= 70
+                                                        ? "High"
+                                                        : (selectedPlotData
+                                                                .soilHealth
+                                                                .moisture ||
+                                                                50) >= 40
+                                                          ? "Good"
+                                                          : "Low"}
+                                                </span>
+                                            </div>
+                                            <div className="flex items-center space-x-3 mt-2">
+                                                <div className="flex-1 bg-gray-200 dark:bg-gray-600 rounded-full h-3">
+                                                    <div
+                                                        className={`h-3 rounded-full transition-all ${
+                                                            (selectedPlotData
+                                                                .soilHealth
+                                                                .moisture ||
+                                                                50) >= 70
+                                                                ? "bg-blue-500"
+                                                                : (selectedPlotData
+                                                                        .soilHealth
+                                                                        .moisture ||
+                                                                        50) >=
+                                                                    40
+                                                                  ? "bg-green-500"
+                                                                  : "bg-red-500"
+                                                        }`}
+                                                        style={{
+                                                            width: `${selectedPlotData.soilHealth.moisture || 50}%`,
+                                                        }}
+                                                    ></div>
+                                                </div>
+                                                <span className="text-lg font-bold text-gray-900 dark:text-gray-100 min-w-[3rem] text-right">
+                                                    {selectedPlotData.soilHealth
+                                                        .moisture || 50}
+                                                    %
+                                                </span>
+                                            </div>
+                                        </div>
+
+                                        {(selectedPlotData.soilHealth
+                                            .nitrogen !== undefined ||
+                                            selectedPlotData.soilHealth
+                                                .lastTested) && (
+                                            <div className="grid grid-cols-2 gap-3">
+                                                {selectedPlotData.soilHealth
+                                                    .nitrogen !== undefined && (
+                                                    <div className="bg-white dark:bg-gray-800 p-3 rounded-lg border border-cyan-200 dark:border-cyan-700">
+                                                        <p className="text-xs font-medium text-cyan-600 dark:text-cyan-400 uppercase tracking-wide mb-1">
+                                                            Nitrogen (N)
+                                                        </p>
+                                                        <p className="text-lg font-bold text-gray-900 dark:text-gray-100">
+                                                            {
+                                                                selectedPlotData
+                                                                    .soilHealth
+                                                                    .nitrogen
+                                                            }
+                                                        </p>
+                                                        <p className="text-xs text-gray-500 dark:text-gray-400">
+                                                            ppm
+                                                        </p>
+                                                    </div>
+                                                )}
+                                                {selectedPlotData.soilHealth
+                                                    .lastTested && (
+                                                    <div className="bg-white dark:bg-gray-800 p-3 rounded-lg border border-cyan-200 dark:border-cyan-700">
+                                                        <p className="text-xs font-medium text-cyan-600 dark:text-cyan-400 uppercase tracking-wide mb-1">
+                                                            Last Tested
+                                                        </p>
+                                                        <p className="text-xs font-semibold text-gray-900 dark:text-gray-100">
+                                                            {new Date(
+                                                                selectedPlotData
+                                                                    .soilHealth
+                                                                    .lastTested,
+                                                            ).toLocaleDateString()}
+                                                        </p>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+
+                                {/* Irrigation Card */}
+                                <div className="bg-gradient-to-br from-sky-50 to-blue-50 dark:from-sky-900/20 dark:to-blue-900/20 rounded-xl p-4 border border-sky-200 dark:border-sky-800">
+                                    <div className="flex items-center mb-3">
+                                        <div className="w-8 h-8 bg-sky-500 dark:bg-sky-600 rounded-lg flex items-center justify-center mr-3">
+                                            <Droplets className="w-4 h-4 text-white" />
+                                        </div>
+                                        <h4 className="font-semibold text-gray-900 dark:text-gray-100 text-lg">
+                                            Irrigation
+                                        </h4>
+                                    </div>
+                                    <div className="space-y-3">
+                                        <div className="bg-white dark:bg-gray-800 p-4 rounded-lg border border-sky-200 dark:border-sky-700">
+                                            <p className="text-xs font-medium text-sky-600 dark:text-sky-400 uppercase tracking-wide mb-1">
+                                                System Type
+                                            </p>
+                                            <p className="text-lg font-bold text-gray-900 dark:text-gray-100 capitalize">
+                                                {selectedPlotData.irrigation
+                                                    .type || "Manual"}
+                                            </p>
+                                        </div>
+
+                                        {selectedPlotData.irrigation
+                                            .schedule && (
+                                            <div className="bg-gradient-to-br from-blue-50 to-sky-50 dark:from-blue-900/30 dark:to-sky-900/30 border-2 border-blue-300 dark:border-blue-600 p-4 rounded-lg">
+                                                <p className="text-xs text-blue-700 dark:text-blue-300 font-bold uppercase tracking-wide mb-3">
+                                                    Watering Schedule
+                                                </p>
+                                                <div className="space-y-2">
+                                                    <div className="flex items-center justify-between">
+                                                        <span className="text-xs font-medium text-blue-600 dark:text-blue-400">
+                                                            Frequency
+                                                        </span>
+                                                        <span className="text-sm font-bold text-gray-900 dark:text-gray-100">
+                                                            {
+                                                                selectedPlotData
+                                                                    .irrigation
+                                                                    .schedule
+                                                                    .frequency
+                                                            }
+                                                            x/week
+                                                        </span>
+                                                    </div>
+                                                    <div className="flex items-center justify-between">
+                                                        <span className="text-xs font-medium text-blue-600 dark:text-blue-400">
+                                                            Duration
+                                                        </span>
+                                                        <span className="text-sm font-bold text-gray-900 dark:text-gray-100">
+                                                            {
+                                                                selectedPlotData
+                                                                    .irrigation
+                                                                    .schedule
+                                                                    .duration
+                                                            }{" "}
+                                                            min
+                                                        </span>
+                                                    </div>
+                                                    {selectedPlotData.irrigation
+                                                        .schedule.times && (
+                                                        <div className="pt-2 border-t border-blue-200 dark:border-blue-700">
+                                                            <p className="text-xs font-medium text-blue-600 dark:text-blue-400 mb-1">
+                                                                Times
+                                                            </p>
+                                                            <p className="text-sm font-semibold text-gray-900 dark:text-gray-100">
+                                                                {selectedPlotData.irrigation.schedule.times.join(
+                                                                    ", ",
+                                                                )}
+                                                            </p>
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        )}
+
+                                        {selectedPlotData.irrigation
+                                            .lastWatered && (
+                                            <div className="bg-white dark:bg-gray-800 p-3 rounded-lg border border-sky-200 dark:border-sky-700">
+                                                <p className="text-xs font-medium text-sky-600 dark:text-sky-400 uppercase tracking-wide mb-1">
+                                                    Last Watered
+                                                </p>
+                                                <p className="text-sm font-semibold text-gray-900 dark:text-gray-100">
+                                                    {new Date(
+                                                        selectedPlotData
+                                                            .irrigation
+                                                            .lastWatered,
+                                                    ).toLocaleDateString()}
+                                                </p>
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+
+                                {/* Pest Alerts Card */}
+                                {selectedPlotData.pestAlerts.length > 0 && (
+                                    <div className="bg-gradient-to-br from-red-50 to-orange-50 dark:from-red-900/20 dark:to-orange-900/20 rounded-xl p-4 border border-red-200 dark:border-red-800">
+                                        <div className="flex items-center mb-3">
+                                            <div className="w-8 h-8 bg-red-500 dark:bg-red-600 rounded-lg flex items-center justify-center mr-3">
+                                                <AlertTriangle className="w-4 h-4 text-white" />
+                                            </div>
+                                            <h4 className="font-semibold text-gray-900 dark:text-gray-100 text-lg">
+                                                Active Alerts (
+                                                {
+                                                    selectedPlotData.pestAlerts.filter(
+                                                        (alert) =>
+                                                            alert.status ===
+                                                            "active",
+                                                    ).length
+                                                }
+                                                )
+                                            </h4>
+                                        </div>
+                                        <div className="space-y-3">
+                                            {selectedPlotData.pestAlerts
+                                                .filter(
+                                                    (alert) =>
+                                                        alert.status ===
+                                                        "active",
+                                                )
+                                                .slice(0, 3)
+                                                .map((alert, index) => (
+                                                    <div
+                                                        key={index}
+                                                        className="bg-white dark:bg-gray-800 border-l-4 border-red-500 dark:border-red-600 p-4 rounded-lg"
+                                                    >
+                                                        <div className="flex items-center justify-between mb-1">
+                                                            <p className="text-sm font-bold text-red-800 dark:text-red-300 capitalize">
+                                                                {alert.type}
+                                                            </p>
+                                                            <span className="px-2 py-1 bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-400 text-xs font-bold rounded-full">
+                                                                {alert.severity}
+                                                            </span>
+                                                        </div>
+                                                    </div>
+                                                ))}
+                                        </div>
+                                    </div>
+                                )}
+
+                                {/* Quick Actions */}
+                                <div className="grid grid-cols-2 gap-3 pt-2">
+                                    <button
+                                        onClick={() =>
+                                            setShowActivityForm(true)
+                                        }
+                                        className="px-4 py-3 bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white text-sm font-semibold rounded-xl shadow-md hover:shadow-lg transition-all flex items-center justify-center"
+                                    >
+                                        <Plus className="w-4 h-4 mr-2" />
+                                        Add Activity
+                                    </button>
+                                    <button
+                                        onClick={() =>
+                                            setShowSuggestions(!showSuggestions)
+                                        }
+                                        className="px-4 py-3 bg-gradient-to-r from-amber-500 to-yellow-500 hover:from-amber-600 hover:to-yellow-600 text-white text-sm font-semibold rounded-xl shadow-md hover:shadow-lg transition-all flex items-center justify-center"
+                                    >
+                                        <Lightbulb className="w-4 h-4 mr-2" />
+                                        Suggestions
+                                    </button>
+                                </div>
+
+                                {/* Empty State for Plot Details */}
+                                {(!selectedPlotData.crop ||
+                                    selectedPlotData.crop.name === "Empty") && (
+                                    <div className="bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-800 dark:to-gray-700 rounded-xl p-8 text-center border-2 border-dashed border-gray-300 dark:border-gray-600">
+                                        <div className="w-20 h-20 bg-gradient-to-br from-green-400 to-green-500 rounded-full flex items-center justify-center mx-auto mb-4 shadow-lg">
+                                            <Leaf className="w-10 h-10 text-white" />
+                                        </div>
+                                        <h4 className="text-lg font-bold text-gray-900 dark:text-gray-100 mb-2">
+                                            Empty Plot
+                                        </h4>
+                                        <p className="text-sm text-gray-600 dark:text-gray-400 mb-6">
+                                            This plot is ready for planting.
+                                            Start growing your crops!
+                                        </p>
+                                        {isEditing && (
+                                            <button
+                                                onClick={() =>
+                                                    setEditingPlot(
+                                                        selectedPlotData.plotNumber,
+                                                    )
+                                                }
+                                                className="px-6 py-3 bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white font-semibold rounded-xl shadow-md hover:shadow-lg transition-all"
+                                            >
+                                                Select Crop to Plant
+                                            </button>
+                                        )}
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                    ) : !bulkSelectMode ? (
+                        /* No Plot Selected State */
+                        <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm p-8 text-center">
+                            <div className="w-20 h-20 bg-gray-100 dark:bg-gray-700 rounded-full flex items-center justify-center mx-auto mb-4">
+                                <Grid3X3 className="w-10 h-10 text-gray-400 dark:text-gray-500" />
+                            </div>
+                            <h3 className="text-2xl font-bold text-gray-900 dark:text-gray-100 mb-2">
+                                Select a Plot
+                            </h3>
+                            <p className="text-gray-600 dark:text-gray-400 mb-6">
+                                Click on any plot in the farm grid to view
+                                details
+                            </p>
+                            <div className="space-y-3 text-left bg-gray-50 dark:bg-gray-700/50 rounded-lg p-4">
+                                <div className="flex items-start space-x-3">
+                                    <div className="w-2 h-2 bg-green-500 rounded-full mt-2"></div>
+                                    <p className="text-sm text-gray-700 dark:text-gray-300">
+                                        View crop information and health status
+                                    </p>
+                                </div>
+                                <div className="flex items-start space-x-3">
+                                    <div className="w-2 h-2 bg-green-500 rounded-full mt-2"></div>
+                                    <p className="text-sm text-gray-700 dark:text-gray-300">
+                                        Add activities and track progress
+                                    </p>
+                                </div>
+                                <div className="flex items-start space-x-3">
+                                    <div className="w-2 h-2 bg-green-500 rounded-full mt-2"></div>
+                                    <p className="text-sm text-gray-700 dark:text-gray-300">
+                                        Get AI-powered crop suggestions
+                                    </p>
+                                </div>
+                                <div className="flex items-start space-x-3">
+                                    <div className="w-2 h-2 bg-green-500 rounded-full mt-2"></div>
+                                    <p className="text-sm text-gray-700 dark:text-gray-300">
+                                        Monitor soil health and irrigation
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+                    ) : null}
+                </div>
+            </div>
+
+            {/* Activity Form Modal */}
+            {showActivityForm && selectedPlot !== null && (
+                <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+                    <div className="bg-white dark:bg-gray-800 rounded-lg p-6 w-full max-w-md">
+                        <div className="flex items-center justify-between mb-4">
+                            <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
+                                Add Activity - Plot {selectedPlot}
+                            </h3>
+                            <button
+                                onClick={() => setShowActivityForm(false)}
+                                className="p-1 text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300"
+                            >
+                                <X size={20} />
+                            </button>
+                        </div>
+
+                        <div className="space-y-4">
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                                    Activity Type
+                                </label>
+                                <select
+                                    value={newActivity.type}
+                                    onChange={(e) =>
+                                        setNewActivity({
+                                            ...newActivity,
+                                            type: e.target
+                                                .value as PlotActivity["type"],
+                                        })
+                                    }
+                                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
+                                >
+                                    <option value="planting">Planting</option>
+                                    <option value="watering">Watering</option>
+                                    <option value="fertilizing">
+                                        Fertilizing
+                                    </option>
+                                    <option value="pesticide">
+                                        Pesticide Application
+                                    </option>
+                                    <option value="weeding">Weeding</option>
+                                    <option value="harvesting">
+                                        Harvesting
+                                    </option>
+                                    <option value="soil_test">
+                                        Soil Testing
+                                    </option>
+                                    <option value="other">Other</option>
+                                </select>
+                            </div>
+
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                                    Description
+                                </label>
+                                <textarea
+                                    value={newActivity.description}
+                                    onChange={(e) =>
+                                        setNewActivity({
+                                            ...newActivity,
+                                            description: e.target.value,
+                                        })
+                                    }
+                                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
+                                    rows={3}
+                                    placeholder="Describe the activity..."
+                                />
+                            </div>
+
+                            <div className="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                                        Date
+                                    </label>
+                                    <input
+                                        type="date"
+                                        value={newActivity.date}
+                                        onChange={(e) =>
+                                            setNewActivity({
+                                                ...newActivity,
+                                                date: e.target.value,
+                                            })
+                                        }
+                                        className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
+                                    />
+                                </div>
+
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                                        Cost (₹)
+                                    </label>
+                                    <input
+                                        type="number"
+                                        value={newActivity.cost}
+                                        onChange={(e) =>
+                                            setNewActivity({
+                                                ...newActivity,
+                                                cost: parseFloat(
+                                                    e.target.value,
+                                                ),
+                                            })
+                                        }
+                                        className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
+                                        min="0"
+                                        step="10"
+                                    />
+                                </div>
+                            </div>
+
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                                    Notes (optional)
+                                </label>
+                                <input
+                                    type="text"
+                                    value={newActivity.notes}
+                                    onChange={(e) =>
+                                        setNewActivity({
+                                            ...newActivity,
+                                            notes: e.target.value,
+                                        })
+                                    }
+                                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
+                                    placeholder="Additional notes..."
+                                />
+                            </div>
+                        </div>
+
+                        <div className="flex justify-end space-x-3 mt-6">
+                            <button
+                                onClick={() => setShowActivityForm(false)}
+                                className="px-4 py-2 text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 rounded-md hover:bg-gray-200 dark:hover:bg-gray-600"
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                onClick={addActivity}
+                                disabled={!newActivity.description}
+                                className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 dark:bg-green-700 dark:hover:bg-green-800 disabled:opacity-50"
+                            >
+                                <Save className="w-4 h-4 mr-1 inline" />
+                                Add Activity
+                            </button>
+                        </div>
                     </div>
-                  )}
-                  <div className="flex items-center justify-center mt-1 space-x-1">
-                    {plot.pestAlerts.some(
-                      (alert) => alert.status === "active",
-                    ) && (
-                      <div
-                        className="w-2 h-2 bg-red-500 rounded-full"
-                        title="Pest Alert"
-                      ></div>
-                    )}
-                    {plot.crop?.health &&
-                      plot.crop.health !== "good" &&
-                      plot.crop.health !== "excellent" &&
-                      plot.crop.name !== "Empty" && (
-                        <div
-                          className={`w-2 h-2 rounded-full ${
-                            plot.crop.health === "fair"
-                              ? "bg-yellow-500"
-                              : plot.crop.health === "poor"
-                                ? "bg-orange-500"
-                                : plot.crop.health === "critical"
-                                  ? "bg-red-600"
-                                  : ""
-                          }`}
-                          title={`Health: ${plot.crop.health}`}
-                        ></div>
-                      )}
-                  </div>
                 </div>
-              ))}
-            </div>
-          </div>
-        </div>
+            )}
 
-        {/* Plot Details Sidebar - Takes 1 column on desktop, full width on mobile */}
-        <div className="xl:col-span-1 space-y-4">
-          {/* Simplified Bulk Actions */}
-          {bulkSelectMode && selectedPlots.size === 0 && (
-            <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-8 text-center">
-              <Target className="w-16 h-16 text-gray-400 dark:text-gray-500 mx-auto mb-4" />
-              <h3 className="text-xl font-semibold text-gray-900 dark:text-gray-100 mb-3">
-                Select Plots
-              </h3>
-              <p className="text-gray-600 dark:text-gray-400 mb-6 text-lg">
-                Tap plots to select them
-              </p>
-              <div className="space-y-3">
-                <button
-                  onClick={selectAllPlots}
-                  className="w-full px-6 py-3 bg-blue-600 text-white rounded-xl hover:bg-blue-700 dark:bg-blue-700 dark:hover:bg-blue-800 transition-colors touch-manipulation text-lg font-medium"
-                >
-                  Select All Plots
-                </button>
-                <button
-                  onClick={toggleBulkSelectMode}
-                  className="w-full px-6 py-3 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-xl hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors touch-manipulation text-lg"
-                >
-                  Cancel
-                </button>
-              </div>
-            </div>
-          )}
+            {/* Crop Suggestions Panel */}
+            {showSuggestions && selectedPlotData && (
+                <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm p-6">
+                    <div className="flex items-center justify-between mb-4">
+                        <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 flex items-center">
+                            <Lightbulb className="w-5 h-5 mr-2 text-yellow-500" />
+                            Crop Suggestions for Plot{" "}
+                            {selectedPlotData.plotNumber}
+                        </h3>
+                        <button
+                            onClick={() => setShowSuggestions(false)}
+                            className="p-1 text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300"
+                        >
+                            <X size={20} />
+                        </button>
+                    </div>
 
-          {selectedPlotData ? (
-            <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden sticky top-4">
-              <div className="bg-gray-50 dark:bg-gray-700 px-4 py-3 border-b border-gray-200 dark:border-gray-600">
-                <div className="flex items-center justify-between">
-                  <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
-                    Plot {selectedPlotData.plotNumber}
-                  </h3>
-                  <div className="flex items-center space-x-2">
-                    <button
-                      onClick={() => setSelectedPlot(null)}
-                      className="p-1 text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 xl:hidden"
-                    >
-                      <X size={16} />
-                    </button>
-                  </div>
-                </div>
-              </div>
-
-              <div className="p-4 max-h-[calc(100vh-200px)] overflow-y-auto">
-                {/* Crop Information */}
-                <div className="mb-6">
-                  <h4 className="font-medium text-gray-900 dark:text-gray-100 flex items-center mb-3">
-                    <Leaf className="w-4 h-4 mr-2 text-green-600" />
-                    Crop Details
-                  </h4>
-                  <div className="space-y-3">
-                    {isEditing &&
-                    editingPlot === selectedPlotData.plotNumber ? (
-                      <select
-                        value={selectedPlotData.crop?.name || "Empty"}
-                        onChange={(e) =>
-                          updatePlotCrop(
-                            selectedPlotData.plotNumber,
-                            e.target.value,
-                          )
-                        }
-                        className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
-                      >
-                        {availableCrops.map((crop) => (
-                          <option key={crop} value={crop}>
-                            {crop}
-                          </option>
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                        {cropSuggestions.map((suggestion, index) => (
+                            <div
+                                key={index}
+                                className="p-4 border border-gray-200 dark:border-gray-700 rounded-lg hover:border-green-300 dark:hover:border-green-600 transition-colors cursor-pointer bg-white dark:bg-gray-800"
+                                onClick={() => {
+                                    if (isEditing) {
+                                        updatePlotCrop(
+                                            selectedPlotData.plotNumber,
+                                            suggestion.name,
+                                        );
+                                        setShowSuggestions(false);
+                                    }
+                                }}
+                            >
+                                <div className="flex items-center justify-between mb-2">
+                                    <h5 className="font-medium text-gray-900 dark:text-gray-100">
+                                        {suggestion.name}
+                                    </h5>
+                                    <span
+                                        className={`px-2 py-1 text-xs rounded-full ${
+                                            suggestion.suitability === "High"
+                                                ? "bg-green-100 text-green-800"
+                                                : suggestion.suitability ===
+                                                    "Medium"
+                                                  ? "bg-yellow-100 text-yellow-800"
+                                                  : "bg-red-100 text-red-800"
+                                        }`}
+                                    >
+                                        {suggestion.suitability}
+                                    </span>
+                                </div>
+                                <p className="text-sm text-gray-600 dark:text-gray-400 mb-3">
+                                    {suggestion.reason}
+                                </p>
+                                <div className="space-y-1 text-xs text-gray-500 dark:text-gray-400">
+                                    <p>
+                                        <strong>Expected Yield:</strong>{" "}
+                                        {suggestion.expectedYield}
+                                    </p>
+                                    <p>
+                                        <strong>ROI:</strong> {suggestion.roi}
+                                    </p>
+                                </div>
+                                {isEditing && (
+                                    <button className="mt-3 w-full px-3 py-2 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 text-sm rounded-md hover:bg-green-200 dark:hover:bg-green-900/50">
+                                        Plant {suggestion.name}
+                                    </button>
+                                )}
+                            </div>
                         ))}
-                      </select>
-                    ) : (
-                      <div className="bg-gray-50 dark:bg-gray-700 p-3 rounded-md">
-                        <p className="text-sm text-gray-600 dark:text-gray-400">
-                          Current Crop
-                        </p>
-                        <p className="font-medium text-gray-900 dark:text-gray-100">
-                          {selectedPlotData.crop?.name || "No crop planted"}
-                        </p>
-                        {isEditing && (
-                          <button
-                            onClick={() =>
-                              setEditingPlot(selectedPlotData.plotNumber)
-                            }
-                            className="mt-2 text-xs text-green-600 hover:text-green-700"
-                          >
-                            Click to edit crop
-                          </button>
+                    </div>
+
+                    {cropSuggestions.length === 0 && (
+                        <div className="text-center py-8">
+                            <Lightbulb className="h-12 w-12 text-gray-300 dark:text-gray-600 mx-auto mb-3" />
+                            <p className="text-gray-500 dark:text-gray-400">
+                                No specific suggestions available
+                            </p>
+                            <p className="text-sm text-gray-400 dark:text-gray-500">
+                                Consider updating soil health data for better
+                                recommendations
+                            </p>
+                        </div>
+                    )}
+                </div>
+            )}
+
+            {/* Farm Configuration Modal */}
+            {showFarmConfig && (
+                <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+                    <div className="bg-white dark:bg-gray-800 rounded-xl shadow-2xl p-6 w-full max-w-md">
+                        <div className="flex items-center justify-between mb-4">
+                            <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
+                                Farm Configuration
+                            </h3>
+                            <button
+                                onClick={() =>
+                                    !savingConfig && setShowFarmConfig(false)
+                                }
+                                disabled={savingConfig}
+                                className="p-1 text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 disabled:opacity-50"
+                            >
+                                <X size={20} />
+                            </button>
+                        </div>
+
+                        {error && (
+                            <div className="mb-4 p-3 bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-700 rounded-md">
+                                <p className="text-sm text-red-600 dark:text-red-400">
+                                    {error}
+                                </p>
+                            </div>
                         )}
-                      </div>
-                    )}
 
-                    {selectedPlotData.crop?.name !== "Empty" && (
-                      <div className="space-y-2">
-                        <div className="bg-gray-50 dark:bg-gray-700 p-3 rounded-md">
-                          <p className="text-sm text-gray-600 dark:text-gray-400">
-                            Growth Stage
-                          </p>
-                          <p className="font-medium text-gray-900 dark:text-gray-100 capitalize">
-                            {selectedPlotData.crop?.stage.replace("_", " ")}
-                          </p>
+                        <div className="space-y-4">
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                                    Total Farm Size (acres)
+                                </label>
+                                <input
+                                    type="number"
+                                    value={farmConfig.totalAcres}
+                                    onChange={(e) =>
+                                        setFarmConfig({
+                                            ...farmConfig,
+                                            totalAcres:
+                                                parseFloat(e.target.value) || 0,
+                                        })
+                                    }
+                                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-green-500"
+                                    step="0.1"
+                                    min="0.1"
+                                />
+                            </div>
+
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                                    Plot Size (calculated)
+                                </label>
+                                <div className="w-full px-3 py-2 border border-gray-200 dark:border-gray-600 rounded-md bg-gray-50 dark:bg-gray-700 text-gray-600 dark:text-gray-400">
+                                    {(
+                                        farmConfig.totalAcres /
+                                        (farmConfig.rows * farmConfig.cols)
+                                    ).toFixed(3)}{" "}
+                                    acres each
+                                </div>
+                                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                                    Automatically calculated from total farm
+                                    size ÷ number of plots
+                                </p>
+                            </div>
+
+                            <div className="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                                        Rows
+                                    </label>
+                                    <input
+                                        type="number"
+                                        value={farmConfig.rows}
+                                        onChange={(e) =>
+                                            setFarmConfig({
+                                                ...farmConfig,
+                                                rows:
+                                                    parseInt(e.target.value) ||
+                                                    1,
+                                            })
+                                        }
+                                        className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-green-500"
+                                        min="1"
+                                        max="10"
+                                    />
+                                </div>
+
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                                        Columns
+                                    </label>
+                                    <input
+                                        type="number"
+                                        value={farmConfig.cols}
+                                        onChange={(e) =>
+                                            setFarmConfig({
+                                                ...farmConfig,
+                                                cols:
+                                                    parseInt(e.target.value) ||
+                                                    1,
+                                            })
+                                        }
+                                        className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-green-500"
+                                        min="1"
+                                        max="10"
+                                    />
+                                </div>
+                            </div>
+
+                            <div className="bg-gray-50 dark:bg-gray-700 p-3 rounded-md">
+                                <p className="text-sm text-gray-600 dark:text-gray-400">
+                                    <strong>Total Plots:</strong>{" "}
+                                    {farmConfig.rows * farmConfig.cols}
+                                </p>
+                                <p className="text-sm text-gray-600 dark:text-gray-400">
+                                    <strong>Plot Size:</strong>{" "}
+                                    {(
+                                        farmConfig.totalAcres /
+                                        (farmConfig.rows * farmConfig.cols)
+                                    ).toFixed(3)}{" "}
+                                    acres each
+                                </p>
+                                <p className="text-sm text-gray-600 dark:text-gray-400">
+                                    <strong>Total Area:</strong>{" "}
+                                    {farmConfig.totalAcres.toFixed(2)} acres
+                                </p>
+                            </div>
                         </div>
-                        <div className="bg-gray-50 dark:bg-gray-700 p-3 rounded-md">
-                          <p className="text-sm text-gray-600 dark:text-gray-400">
-                            Health Status
-                          </p>
-                          <span
-                            className={`inline-flex px-2 py-1 text-xs font-medium rounded-full capitalize ${
-                              selectedPlotData.crop?.health === "excellent"
-                                ? "bg-green-100 dark:bg-green-900/40 text-green-800 dark:text-green-300"
-                                : selectedPlotData.crop?.health === "good"
-                                  ? "bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-300"
-                                  : selectedPlotData.crop?.health === "fair"
-                                    ? "bg-yellow-100 dark:bg-yellow-900/40 text-yellow-800 dark:text-yellow-300"
-                                    : selectedPlotData.crop?.health === "poor"
-                                      ? "bg-orange-100 dark:bg-orange-900/40 text-orange-800 dark:text-orange-300"
-                                      : "bg-red-100 dark:bg-red-900/40 text-red-800 dark:text-red-300"
-                            }`}
-                          >
-                            {selectedPlotData.crop?.health}
-                          </span>
+
+                        <div className="flex space-x-3 mt-6">
+                            <button
+                                onClick={() => {
+                                    setError(null);
+                                    setShowFarmConfig(false);
+                                    // Restore original config if canceled
+                                    if (selectedFarm) {
+                                        updateFarmConfig(selectedFarm);
+                                    }
+                                }}
+                                disabled={savingConfig}
+                                className="flex-1 px-4 py-2 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-md hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                onClick={saveFarmConfiguration}
+                                disabled={savingConfig}
+                                className="flex-1 px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 dark:bg-green-700 dark:hover:bg-green-800 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
+                            >
+                                {savingConfig ? (
+                                    <>
+                                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                                        Saving...
+                                    </>
+                                ) : (
+                                    "Save Configuration"
+                                )}
+                            </button>
                         </div>
-                      </div>
-                    )}
-                  </div>
-                </div>
-
-                {/* Plot Size Information */}
-                <div className="mb-6">
-                  <h4 className="font-medium text-gray-900 dark:text-gray-100 flex items-center mb-3">
-                    <TrendingUp className="w-4 h-4 mr-2 text-blue-600" />
-                    Performance
-                  </h4>
-                  <div className="grid grid-cols-2 gap-3">
-                    <div className="bg-gray-50 dark:bg-gray-700 p-3 rounded-md">
-                      <p className="text-sm text-gray-600 dark:text-gray-400">
-                        Expected Yield
-                      </p>
-                      <p className="font-medium text-gray-900 dark:text-gray-100">
-                        N/A
-                      </p>
                     </div>
-                    <div className="bg-gray-50 dark:bg-gray-700 p-3 rounded-md">
-                      <p className="text-sm text-gray-600 dark:text-gray-400">
-                        Growth Stage
-                      </p>
-                      <p className="font-medium text-gray-900 dark:text-gray-100 capitalize">
-                        {selectedPlotData.crop?.stage?.replace("_", " ") ||
-                          "N/A"}
-                      </p>
-                    </div>
-                  </div>
                 </div>
-
-                {/* Soil Health */}
-                <div className="mb-6">
-                  <h4 className="font-medium text-gray-900 dark:text-gray-100 flex items-center mb-3">
-                    <Droplets className="w-4 h-4 mr-2 text-blue-600" />
-                    Soil Health
-                  </h4>
-                  <div className="space-y-3">
-                    <div className="bg-gray-50 dark:bg-gray-700 p-3 rounded-md">
-                      <div className="flex items-center justify-between mb-1">
-                        <p className="text-sm text-gray-600 dark:text-gray-400">
-                          pH Level
-                        </p>
-                        <span
-                          className={`px-2 py-1 text-xs rounded-full ${
-                            selectedPlotData.soilHealth.ph
-                              ? selectedPlotData.soilHealth.ph < 6.5
-                                ? "bg-red-100 text-red-700"
-                                : selectedPlotData.soilHealth.ph > 7.5
-                                  ? "bg-orange-100 text-orange-700"
-                                  : "bg-green-100 text-green-700"
-                              : "bg-gray-100 text-gray-600"
-                          }`}
-                        >
-                          {selectedPlotData.soilHealth.ph
-                            ? selectedPlotData.soilHealth.ph < 6.5
-                              ? "Acidic"
-                              : selectedPlotData.soilHealth.ph > 7.5
-                                ? "Alkaline"
-                                : "Optimal"
-                            : "Unknown"}
-                        </span>
-                      </div>
-                      <p className="font-medium text-gray-900 dark:text-gray-100">
-                        {selectedPlotData.soilHealth.ph?.toFixed(1) || "7.0"}
-                      </p>
-                    </div>
-
-                    <div className="bg-gray-50 dark:bg-gray-700 p-3 rounded-md">
-                      <div className="flex items-center justify-between mb-1">
-                        <p className="text-sm text-gray-600 dark:text-gray-400">
-                          Moisture Level
-                        </p>
-                        <span
-                          className={`px-2 py-1 text-xs rounded-full ${
-                            (selectedPlotData.soilHealth.moisture || 50) >= 70
-                              ? "bg-blue-100 text-blue-700"
-                              : (selectedPlotData.soilHealth.moisture || 50) >=
-                                  40
-                                ? "bg-green-100 text-green-700"
-                                : "bg-red-100 text-red-700"
-                          }`}
-                        >
-                          {(selectedPlotData.soilHealth.moisture || 50) >= 70
-                            ? "High"
-                            : (selectedPlotData.soilHealth.moisture || 50) >= 40
-                              ? "Good"
-                              : "Low"}
-                        </span>
-                      </div>
-                      <div className="flex items-center space-x-2">
-                        <div className="flex-1 bg-gray-200 dark:bg-gray-600 rounded-full h-2">
-                          <div
-                            className={`h-2 rounded-full ${
-                              (selectedPlotData.soilHealth.moisture || 50) >= 70
-                                ? "bg-blue-500"
-                                : (selectedPlotData.soilHealth.moisture ||
-                                      50) >= 40
-                                  ? "bg-green-500"
-                                  : "bg-red-500"
-                            }`}
-                            style={{
-                              width: `${selectedPlotData.soilHealth.moisture || 50}%`,
-                            }}
-                          ></div>
-                        </div>
-                        <span className="text-sm font-medium text-gray-900 dark:text-gray-100">
-                          {selectedPlotData.soilHealth.moisture || 50}%
-                        </span>
-                      </div>
-                    </div>
-
-                    {selectedPlotData.soilHealth.nitrogen !== undefined && (
-                      <div className="bg-gray-50 dark:bg-gray-700 p-3 rounded-md">
-                        <p className="text-sm text-gray-600 dark:text-gray-400">
-                          Nitrogen (N)
-                        </p>
-                        <p className="font-medium text-gray-900 dark:text-gray-100">
-                          {selectedPlotData.soilHealth.nitrogen} ppm
-                        </p>
-                      </div>
-                    )}
-
-                    {selectedPlotData.soilHealth.lastTested && (
-                      <div className="bg-gray-50 dark:bg-gray-700 p-3 rounded-md">
-                        <p className="text-sm text-gray-600 dark:text-gray-400">
-                          Last Tested
-                        </p>
-                        <p className="font-medium text-gray-900 dark:text-gray-100">
-                          {new Date(
-                            selectedPlotData.soilHealth.lastTested,
-                          ).toLocaleDateString()}
-                        </p>
-                      </div>
-                    )}
-                  </div>
-                </div>
-
-                {/* Irrigation */}
-                <div className="mb-6">
-                  <h4 className="font-medium text-gray-900 dark:text-gray-100 flex items-center mb-3">
-                    <Droplets className="w-4 h-4 mr-2 text-blue-600" />
-                    Irrigation
-                  </h4>
-                  <div className="space-y-3">
-                    <div className="bg-gray-50 dark:bg-gray-700 p-3 rounded-md">
-                      <p className="text-sm text-gray-600 dark:text-gray-400">
-                        System Type
-                      </p>
-                      <p className="font-medium text-gray-900 dark:text-gray-100 capitalize">
-                        {selectedPlotData.irrigation.type || "Manual"}
-                      </p>
-                    </div>
-
-                    {selectedPlotData.irrigation.schedule && (
-                      <div className="bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-700 p-3 rounded-md">
-                        <p className="text-sm text-blue-700 dark:text-blue-300 font-medium mb-2">
-                          Watering Schedule
-                        </p>
-                        <div className="space-y-1">
-                          <p className="text-xs text-blue-600 dark:text-blue-400">
-                            <strong>Frequency:</strong>{" "}
-                            {selectedPlotData.irrigation.schedule.frequency}x
-                            per week
-                          </p>
-                          <p className="text-xs text-blue-600 dark:text-blue-400">
-                            <strong>Duration:</strong>{" "}
-                            {selectedPlotData.irrigation.schedule.duration}{" "}
-                            minutes
-                          </p>
-                          {selectedPlotData.irrigation.schedule.times && (
-                            <p className="text-xs text-blue-600 dark:text-blue-400">
-                              <strong>Times:</strong>{" "}
-                              {selectedPlotData.irrigation.schedule.times.join(
-                                ", ",
-                              )}
-                            </p>
-                          )}
-                        </div>
-                      </div>
-                    )}
-
-                    {selectedPlotData.irrigation.lastWatered && (
-                      <div className="bg-gray-50 dark:bg-gray-700 p-3 rounded-md">
-                        <p className="text-sm text-gray-600 dark:text-gray-400">
-                          Last Watered
-                        </p>
-                        <p className="font-medium text-gray-900 dark:text-gray-100">
-                          {new Date(
-                            selectedPlotData.irrigation.lastWatered,
-                          ).toLocaleDateString()}
-                        </p>
-                      </div>
-                    )}
-                  </div>
-                </div>
-
-                {/* Pest Alerts */}
-                {selectedPlotData.pestAlerts.length > 0 && (
-                  <div className="mb-6">
-                    <h4 className="font-medium text-gray-900 dark:text-gray-100 flex items-center mb-3">
-                      <AlertTriangle className="w-4 h-4 mr-2 text-red-600" />
-                      Active Alerts (
-                      {
-                        selectedPlotData.pestAlerts.filter(
-                          (alert) => alert.status === "active",
-                        ).length
-                      }
-                      )
-                    </h4>
-                    <div className="space-y-2">
-                      {selectedPlotData.pestAlerts
-                        .filter((alert) => alert.status === "active")
-                        .slice(0, 3)
-                        .map((alert, index) => (
-                          <div
-                            key={index}
-                            className="bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-700 p-3 rounded-md"
-                          >
-                            <p className="text-sm font-medium text-red-800 dark:text-red-300 capitalize">
-                              {alert.type}
-                            </p>
-                            <p className="text-xs text-red-600 dark:text-red-400">
-                              Severity: {alert.severity}
-                            </p>
-                          </div>
-                        ))}
-                    </div>
-                  </div>
-                )}
-
-                {/* Quick Actions */}
-                <div className="space-y-2">
-                  <button
-                    onClick={() => setShowActivityForm(true)}
-                    className="w-full px-3 py-2 bg-green-600 text-white text-sm rounded-md hover:bg-green-700 dark:bg-green-700 dark:hover:bg-green-800 flex items-center justify-center"
-                  >
-                    <Plus className="w-4 h-4 mr-2" />
-                    Add Activity
-                  </button>
-                  <button
-                    onClick={() => setShowSuggestions(!showSuggestions)}
-                    className="w-full px-3 py-2 bg-blue-600 text-white text-sm rounded-md hover:bg-blue-700 dark:bg-blue-700 dark:hover:bg-blue-800 flex items-center justify-center"
-                  >
-                    <Lightbulb className="w-4 h-4 mr-2" />
-                    Get Suggestions
-                  </button>
-                </div>
-
-                {/* Empty State for Plot Details */}
-                {!selectedPlotData.crop ||
-                selectedPlotData.crop.name === "Empty" ? (
-                  <div className="text-center py-8">
-                    <div className="w-16 h-16 bg-gray-100 dark:bg-gray-700 rounded-full flex items-center justify-center mx-auto mb-4">
-                      <Leaf className="w-8 h-8 text-gray-400 dark:text-gray-500" />
-                    </div>
-                    <p className="text-gray-500 dark:text-gray-400 mb-2">
-                      Empty Plot
-                    </p>
-                    <p className="text-xs text-gray-400 dark:text-gray-500 mb-4">
-                      This plot is ready for planting
-                    </p>
-                    {isEditing && (
-                      <button
-                        onClick={() =>
-                          setEditingPlot(selectedPlotData.plotNumber)
-                        }
-                        className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 dark:bg-blue-700 dark:hover:bg-blue-800"
-                      >
-                        Select Crop
-                      </button>
-                    )}
-                  </div>
-                ) : null}
-              </div>
-            </div>
-          ) : !bulkSelectMode ? (
-            /* No Plot Selected State */
-            <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-8 text-center">
-              <div className="w-16 h-16 bg-gray-100 dark:bg-gray-700 rounded-full flex items-center justify-center mx-auto mb-4">
-                <Grid3X3 className="w-8 h-8 text-gray-400 dark:text-gray-500" />
-              </div>
-              <h3 className="text-lg font-medium text-gray-900 dark:text-gray-100 mb-2">
-                Select a Plot
-              </h3>
-              <p className="text-gray-500 dark:text-gray-400 mb-4">
-                Click on any plot in the farm grid to view its details and
-                manage crops
-              </p>
-              <div className="space-y-2 text-sm text-gray-600 dark:text-gray-400">
-                <p>• View crop information and health status</p>
-                <p>• Add activities and track progress</p>
-                <p>• Get AI-powered crop suggestions</p>
-                <p>• Monitor soil health and irrigation</p>
-              </div>
-            </div>
-          ) : null}
-        </div>
-      </div>
-
-      {/* Activity Form Modal */}
-      {showActivityForm && selectedPlot !== null && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white dark:bg-gray-800 rounded-lg p-6 w-full max-w-md">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
-                Add Activity - Plot {selectedPlot}
-              </h3>
-              <button
-                onClick={() => setShowActivityForm(false)}
-                className="p-1 text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300"
-              >
-                <X size={20} />
-              </button>
-            </div>
-
-            <div className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                  Activity Type
-                </label>
-                <select
-                  value={newActivity.type}
-                  onChange={(e) =>
-                    setNewActivity({
-                      ...newActivity,
-                      type: e.target.value as PlotActivity["type"],
-                    })
-                  }
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
-                >
-                  <option value="planting">Planting</option>
-                  <option value="watering">Watering</option>
-                  <option value="fertilizing">Fertilizing</option>
-                  <option value="pesticide">Pesticide Application</option>
-                  <option value="weeding">Weeding</option>
-                  <option value="harvesting">Harvesting</option>
-                  <option value="soil_test">Soil Testing</option>
-                  <option value="other">Other</option>
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                  Description
-                </label>
-                <textarea
-                  value={newActivity.description}
-                  onChange={(e) =>
-                    setNewActivity({
-                      ...newActivity,
-                      description: e.target.value,
-                    })
-                  }
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
-                  rows={3}
-                  placeholder="Describe the activity..."
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                    Date
-                  </label>
-                  <input
-                    type="date"
-                    value={newActivity.date}
-                    onChange={(e) =>
-                      setNewActivity({ ...newActivity, date: e.target.value })
-                    }
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                    Cost (₹)
-                  </label>
-                  <input
-                    type="number"
-                    value={newActivity.cost}
-                    onChange={(e) =>
-                      setNewActivity({
-                        ...newActivity,
-                        cost: parseFloat(e.target.value),
-                      })
-                    }
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
-                    min="0"
-                    step="10"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                  Notes (optional)
-                </label>
-                <input
-                  type="text"
-                  value={newActivity.notes}
-                  onChange={(e) =>
-                    setNewActivity({ ...newActivity, notes: e.target.value })
-                  }
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
-                  placeholder="Additional notes..."
-                />
-              </div>
-            </div>
-
-            <div className="flex justify-end space-x-3 mt-6">
-              <button
-                onClick={() => setShowActivityForm(false)}
-                className="px-4 py-2 text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 rounded-md hover:bg-gray-200 dark:hover:bg-gray-600"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={addActivity}
-                disabled={!newActivity.description}
-                className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 dark:bg-green-700 dark:hover:bg-green-800 disabled:opacity-50"
-              >
-                <Save className="w-4 h-4 mr-1 inline" />
-                Add Activity
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Crop Suggestions Panel */}
-      {showSuggestions && selectedPlotData && (
-        <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-6">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 flex items-center">
-              <Lightbulb className="w-5 h-5 mr-2 text-yellow-500" />
-              Crop Suggestions for Plot {selectedPlotData.plotNumber}
-            </h3>
-            <button
-              onClick={() => setShowSuggestions(false)}
-              className="p-1 text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300"
-            >
-              <X size={20} />
-            </button>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {cropSuggestions.map((suggestion, index) => (
-              <div
-                key={index}
-                className="p-4 border border-gray-200 dark:border-gray-700 rounded-lg hover:border-green-300 dark:hover:border-green-600 transition-colors cursor-pointer bg-white dark:bg-gray-800"
-                onClick={() => {
-                  if (isEditing) {
-                    updatePlotCrop(
-                      selectedPlotData.plotNumber,
-                      suggestion.name,
-                    );
-                    setShowSuggestions(false);
-                  }
-                }}
-              >
-                <div className="flex items-center justify-between mb-2">
-                  <h5 className="font-medium text-gray-900 dark:text-gray-100">
-                    {suggestion.name}
-                  </h5>
-                  <span
-                    className={`px-2 py-1 text-xs rounded-full ${
-                      suggestion.suitability === "High"
-                        ? "bg-green-100 text-green-800"
-                        : suggestion.suitability === "Medium"
-                          ? "bg-yellow-100 text-yellow-800"
-                          : "bg-red-100 text-red-800"
-                    }`}
-                  >
-                    {suggestion.suitability}
-                  </span>
-                </div>
-                <p className="text-sm text-gray-600 dark:text-gray-400 mb-3">
-                  {suggestion.reason}
-                </p>
-                <div className="space-y-1 text-xs text-gray-500 dark:text-gray-400">
-                  <p>
-                    <strong>Expected Yield:</strong> {suggestion.expectedYield}
-                  </p>
-                  <p>
-                    <strong>ROI:</strong> {suggestion.roi}
-                  </p>
-                </div>
-                {isEditing && (
-                  <button className="mt-3 w-full px-3 py-2 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 text-sm rounded-md hover:bg-green-200 dark:hover:bg-green-900/50">
-                    Plant {suggestion.name}
-                  </button>
-                )}
-              </div>
-            ))}
-          </div>
-
-          {cropSuggestions.length === 0 && (
-            <div className="text-center py-8">
-              <Lightbulb className="h-12 w-12 text-gray-300 dark:text-gray-600 mx-auto mb-3" />
-              <p className="text-gray-500 dark:text-gray-400">
-                No specific suggestions available
-              </p>
-              <p className="text-sm text-gray-400 dark:text-gray-500">
-                Consider updating soil health data for better recommendations
-              </p>
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* Farm Configuration Modal */}
-      {showFarmConfig && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white dark:bg-gray-800 rounded-lg p-6 w-full max-w-md mx-4">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
-                Farm Configuration
-              </h3>
-              <button
-                onClick={() => !savingConfig && setShowFarmConfig(false)}
-                disabled={savingConfig}
-                className="p-1 text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 disabled:opacity-50"
-              >
-                <X size={20} />
-              </button>
-            </div>
-
-            {error && (
-              <div className="mb-4 p-3 bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-700 rounded-md">
-                <p className="text-sm text-red-600 dark:text-red-400">
-                  {error}
-                </p>
-              </div>
             )}
 
-            <div className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                  Total Farm Size (acres)
-                </label>
-                <input
-                  type="number"
-                  value={farmConfig.totalAcres}
-                  onChange={(e) =>
-                    setFarmConfig({
-                      ...farmConfig,
-                      totalAcres: parseFloat(e.target.value) || 0,
-                    })
-                  }
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-green-500"
-                  step="0.1"
-                  min="0.1"
-                />
-              </div>
+            {/* Compact Bulk Actions Panel - Top Right */}
+            {bulkSelectMode && selectedPlots.size > 0 && (
+                <div className="fixed top-24 right-4 z-50 w-80 max-w-[calc(100vw-2rem)] animate-in slide-in-from-right">
+                    <div className="bg-white dark:bg-gray-800 rounded-xl shadow-2xl border-2 border-green-500 dark:border-green-600 overflow-hidden">
+                        {/* Compact Header */}
+                        <div className="bg-gradient-to-r from-green-500 to-green-600 dark:from-green-600 dark:to-green-700 px-4 py-3 flex items-center justify-between">
+                            <div className="flex items-center space-x-2">
+                                <div className="w-8 h-8 bg-white/20 backdrop-blur-sm rounded-full flex items-center justify-center">
+                                    <span className="text-base font-bold text-white">
+                                        {selectedPlots.size}
+                                    </span>
+                                </div>
+                                <h3 className="text-base font-semibold text-white">
+                                    Plots Selected
+                                </h3>
+                            </div>
+                            <button
+                                onClick={() => {
+                                    setSelectedPlots(new Set());
+                                    setBulkSelectMode(false);
+                                }}
+                                className="text-white/80 hover:text-white hover:bg-white/20 rounded-lg p-1.5 transition-all"
+                                title="Close Bulk Selection"
+                            >
+                                <X className="w-4 h-4" />
+                            </button>
+                        </div>
 
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                  Plot Size (calculated)
-                </label>
-                <div className="w-full px-3 py-2 border border-gray-200 dark:border-gray-600 rounded-md bg-gray-50 dark:bg-gray-700 text-gray-600 dark:text-gray-400">
-                  {(
-                    farmConfig.totalAcres /
-                    (farmConfig.rows * farmConfig.cols)
-                  ).toFixed(3)}{" "}
-                  acres each
+                        {/* Content */}
+                        <div className="p-4 space-y-3">
+                            {error && (
+                                <div className="p-3 bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-700 rounded-lg">
+                                    <p className="text-xs text-red-700 dark:text-red-400">
+                                        {error}
+                                    </p>
+                                </div>
+                            )}
+
+                            {/* Crop Selector */}
+                            <div className="space-y-2">
+                                <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 uppercase tracking-wide">
+                                    Select Crop
+                                </label>
+                                <select
+                                    value={bulkCropSelection}
+                                    onChange={(e) =>
+                                        setBulkCropSelection(e.target.value)
+                                    }
+                                    className="w-full px-3 py-2.5 border-2 border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-green-500 focus:border-green-500 transition-all"
+                                >
+                                    <option value="">
+                                        Choose a crop to plant...
+                                    </option>
+                                    {availableCrops
+                                        .filter((crop) => crop !== "Empty")
+                                        .map((crop) => (
+                                            <option key={crop} value={crop}>
+                                                {crop === "Empty"
+                                                    ? "🌱 "
+                                                    : "🌾 "}
+                                                {crop}
+                                            </option>
+                                        ))}
+                                </select>
+                            </div>
+
+                            {/* Action Buttons */}
+                            <div className="space-y-2 pt-2">
+                                <button
+                                    onClick={bulkPlantCrop}
+                                    disabled={
+                                        !bulkCropSelection ||
+                                        bulkOperationLoading
+                                    }
+                                    className="w-full px-4 py-2.5 bg-green-600 text-white text-sm font-semibold rounded-lg hover:bg-green-700 dark:bg-green-700 dark:hover:bg-green-800 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center transition-colors shadow-sm"
+                                >
+                                    {bulkOperationLoading ? (
+                                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                                    ) : (
+                                        <Sprout className="w-4 h-4 mr-2" />
+                                    )}
+                                    Plant Crops
+                                </button>
+
+                                <button
+                                    onClick={bulkClearPlots}
+                                    disabled={bulkOperationLoading}
+                                    className="w-full px-4 py-2.5 bg-red-600 text-white text-sm font-semibold rounded-lg hover:bg-red-700 dark:bg-red-700 dark:hover:bg-red-800 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center transition-colors shadow-sm"
+                                >
+                                    {bulkOperationLoading ? (
+                                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                                    ) : (
+                                        <Trash2 className="w-4 h-4 mr-2" />
+                                    )}
+                                    Clear All Plots
+                                </button>
+                            </div>
+                        </div>
+                    </div>
                 </div>
-                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                  Automatically calculated from total farm size ÷ number of
-                  plots
-                </p>
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                    Rows
-                  </label>
-                  <input
-                    type="number"
-                    value={farmConfig.rows}
-                    onChange={(e) =>
-                      setFarmConfig({
-                        ...farmConfig,
-                        rows: parseInt(e.target.value) || 1,
-                      })
-                    }
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-green-500"
-                    min="1"
-                    max="10"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                    Columns
-                  </label>
-                  <input
-                    type="number"
-                    value={farmConfig.cols}
-                    onChange={(e) =>
-                      setFarmConfig({
-                        ...farmConfig,
-                        cols: parseInt(e.target.value) || 1,
-                      })
-                    }
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-green-500"
-                    min="1"
-                    max="10"
-                  />
-                </div>
-              </div>
-
-              <div className="bg-gray-50 dark:bg-gray-700 p-3 rounded-md">
-                <p className="text-sm text-gray-600 dark:text-gray-400">
-                  <strong>Total Plots:</strong>{" "}
-                  {farmConfig.rows * farmConfig.cols}
-                </p>
-                <p className="text-sm text-gray-600 dark:text-gray-400">
-                  <strong>Plot Size:</strong>{" "}
-                  {(
-                    farmConfig.totalAcres /
-                    (farmConfig.rows * farmConfig.cols)
-                  ).toFixed(3)}{" "}
-                  acres each
-                </p>
-                <p className="text-sm text-gray-600 dark:text-gray-400">
-                  <strong>Total Area:</strong>{" "}
-                  {farmConfig.totalAcres.toFixed(2)} acres
-                </p>
-              </div>
-            </div>
-
-            <div className="flex space-x-3 mt-6">
-              <button
-                onClick={() => {
-                  setError(null);
-                  setShowFarmConfig(false);
-                  // Restore original config if canceled
-                  if (selectedFarm) {
-                    updateFarmConfig(selectedFarm);
-                  }
-                }}
-                disabled={savingConfig}
-                className="flex-1 px-4 py-2 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-md hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={saveFarmConfiguration}
-                disabled={savingConfig}
-                className="flex-1 px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 dark:bg-green-700 dark:hover:bg-green-800 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
-              >
-                {savingConfig ? (
-                  <>
-                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                    Saving...
-                  </>
-                ) : (
-                  "Save Configuration"
-                )}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Legend */}
-      <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-4">
-        <h4 className="font-semibold text-gray-900 dark:text-gray-100 mb-3">
-          Legend
-        </h4>
-        <div className="grid grid-cols-2 md:grid-cols-3 gap-4 text-sm">
-          {viewMode === "crops" && (
-            <>
-              <div className="flex items-center space-x-2">
-                <div className="w-4 h-4 bg-gray-200 dark:bg-gray-600 border border-gray-300 dark:border-gray-500 rounded"></div>
-                <span className="text-xs text-gray-600 dark:text-gray-300 font-medium">
-                  Empty Plot
-                </span>
-              </div>
-              <div className="flex items-center space-x-2">
-                <div className="w-4 h-4 bg-green-100 dark:bg-green-900/30 border border-green-300 dark:border-green-600 rounded"></div>
-                <span className="text-xs text-gray-600 dark:text-gray-300 font-medium">
-                  Planted
-                </span>
-              </div>
-            </>
-          )}
-
-          {viewMode === "health" && (
-            <>
-              <div className="flex items-center space-x-2">
-                <div className="w-4 h-4 bg-green-200 dark:bg-green-800/40 border border-green-400 dark:border-green-600 rounded"></div>
-                <span className="text-xs text-gray-600 dark:text-gray-300 font-medium">
-                  Excellent
-                </span>
-              </div>
-              <div className="flex items-center space-x-2">
-                <div className="w-4 h-4 bg-green-100 dark:bg-green-900/30 border border-green-300 dark:border-green-600 rounded"></div>
-                <span className="text-xs text-gray-600 dark:text-gray-300 font-medium">
-                  Good
-                </span>
-              </div>
-              <div className="flex items-center space-x-2">
-                <div className="w-4 h-4 bg-yellow-100 dark:bg-yellow-900/30 border border-yellow-300 dark:border-yellow-600 rounded"></div>
-                <span className="text-xs text-gray-600 dark:text-gray-300 font-medium">
-                  Fair
-                </span>
-              </div>
-              <div className="flex items-center space-x-2">
-                <div className="w-4 h-4 bg-orange-100 dark:bg-orange-900/30 border border-orange-300 dark:border-orange-600 rounded"></div>
-                <span className="text-xs text-gray-600 dark:text-gray-300 font-medium">
-                  Poor
-                </span>
-              </div>
-              <div className="flex items-center space-x-2">
-                <div className="w-4 h-4 bg-red-100 dark:bg-red-900/30 border border-red-300 dark:border-red-600 rounded"></div>
-                <span className="text-xs text-gray-600 dark:text-gray-300 font-medium">
-                  Critical
-                </span>
-              </div>
-            </>
-          )}
-
-          {viewMode === "moisture" && (
-            <>
-              <div className="flex items-center space-x-2">
-                <div className="w-4 h-4 bg-blue-200 dark:bg-blue-800/40 border border-blue-400 dark:border-blue-600 rounded"></div>
-                <span className="text-xs text-gray-600 dark:text-gray-300 font-medium">
-                  High (70%+)
-                </span>
-              </div>
-              <div className="flex items-center space-x-2">
-                <div className="w-4 h-4 bg-blue-100 dark:bg-blue-900/30 border border-blue-300 dark:border-blue-600 rounded"></div>
-                <span className="text-xs text-gray-600 dark:text-gray-300 font-medium">
-                  Medium (40-70%)
-                </span>
-              </div>
-              <div className="flex items-center space-x-2">
-                <div className="w-4 h-4 bg-red-100 dark:bg-red-900/30 border border-red-300 dark:border-red-600 rounded"></div>
-                <span className="text-xs text-gray-600 dark:text-gray-300 font-medium">
-                  Low (&lt;40%)
-                </span>
-              </div>
-            </>
-          )}
-
-          <div className="flex items-center space-x-2">
-            <div className="w-2 h-2 bg-red-500 rounded-full"></div>
-            <span className="text-xs text-gray-600 dark:text-gray-300 font-medium">
-              Pest Alert
-            </span>
-          </div>
-        </div>
-      </div>
-
-      {/* Floating Bulk Actions Panel */}
-      {bulkSelectMode && selectedPlots.size > 0 && (
-        <div className="fixed bottom-4 left-4 right-4 sm:bottom-6 sm:left-1/2 sm:right-auto sm:transform sm:-translate-x-1/2 z-50">
-          <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl border border-gray-200 dark:border-gray-700 p-6 w-full sm:min-w-96 sm:w-auto max-w-md sm:max-w-none mx-auto">
-            <div className="text-center mb-6">
-              <div className="inline-flex items-center space-x-3 mb-2">
-                <div className="w-10 h-10 bg-blue-100 dark:bg-blue-900/30 rounded-full flex items-center justify-center">
-                  <span className="text-lg font-bold text-blue-600 dark:text-blue-400">
-                    {selectedPlots.size}
-                  </span>
-                </div>
-                <h3 className="text-xl font-bold text-gray-900 dark:text-gray-100">
-                  Selected
-                </h3>
-              </div>
-              <button
-                onClick={() => {
-                  setSelectedPlots(new Set());
-                  setBulkSelectMode(false);
-                }}
-                className="absolute top-4 right-4 text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 p-2"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            {error && (
-              <div className="mb-4 p-4 bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-700 rounded-xl text-center">
-                <p className="text-sm text-red-700 dark:text-red-400">
-                  {error}
-                </p>
-              </div>
             )}
-
-            <div className="space-y-4">
-              {/* Plant Crop */}
-              <div className="space-y-3">
-                <select
-                  value={bulkCropSelection}
-                  onChange={(e) => setBulkCropSelection(e.target.value)}
-                  className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-xl text-base bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-green-500 focus:border-green-500 touch-manipulation"
-                >
-                  <option value="">Choose a crop to plant...</option>
-                  {availableCrops
-                    .filter((crop) => crop !== "Empty")
-                    .map((crop) => (
-                      <option key={crop} value={crop}>
-                        {crop}
-                      </option>
-                    ))}
-                </select>
-                <button
-                  onClick={bulkPlantCrop}
-                  disabled={!bulkCropSelection || bulkOperationLoading}
-                  className="w-full px-6 py-4 bg-green-600 text-white text-lg font-semibold rounded-xl hover:bg-green-700 dark:bg-green-700 dark:hover:bg-green-800 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center transition-colors touch-manipulation"
-                >
-                  {bulkOperationLoading ? (
-                    <Loader2 className="w-5 h-5 mr-3 animate-spin" />
-                  ) : (
-                    <Sprout className="w-5 h-5 mr-3" />
-                  )}
-                  Plant Crops
-                </button>
-              </div>
-
-              {/* Clear Plots */}
-              <div className="pt-4 border-t border-gray-200 dark:border-gray-600">
-                <button
-                  onClick={bulkClearPlots}
-                  disabled={bulkOperationLoading}
-                  className="w-full px-6 py-4 bg-red-600 text-white text-lg font-semibold rounded-xl hover:bg-red-700 dark:bg-red-700 dark:hover:bg-red-800 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center transition-colors touch-manipulation"
-                >
-                  {bulkOperationLoading ? (
-                    <Loader2 className="w-5 h-5 mr-3 animate-spin" />
-                  ) : (
-                    <Trash2 className="w-5 h-5 mr-3" />
-                  )}
-                  Clear All Plots
-                </button>
-              </div>
-            </div>
-          </div>
         </div>
-      )}
-    </div>
-  );
+    );
 };
 
 export default FarmVisualization;
