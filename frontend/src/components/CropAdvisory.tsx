@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useCallback } from "react";
 import {
     Leaf,
-    Calendar,
     DollarSign,
     Clock,
     Bell,
@@ -10,20 +9,15 @@ import {
     AlertCircle,
     TrendingUp,
     MapPin,
-    Thermometer,
-    Cloud,
-    Sun,
     BarChart3,
     PieChart,
     Target,
     Shield,
     Lightbulb,
     Camera,
-    Users,
     BookOpen,
     Star,
     Filter,
-    RefreshCw,
     Download,
     Share2,
 } from "lucide-react";
@@ -119,62 +113,27 @@ const CropAdvisory: React.FC = () => {
         organicPreference: false,
     });
 
+
     const [recommendations, setRecommendations] = useState<
         CropRecommendation[]
     >([]);
     const [loading, setLoading] = useState(false);
-    const [calendarData, setCalendarData] = useState<FasalCalendar | null>(
-        null,
-    );
-    const [weatherData, setWeatherData] = useState<WeatherData | null>(null);
     const [marketData, setMarketData] = useState<Record<string, MarketData>>(
         {},
     );
     const [compareMode, setCompareMode] = useState(false);
     const [selectedCrops, setSelectedCrops] = useState<string[]>([]);
     const [showFilters, setShowFilters] = useState(false);
-    const [showTabDropdown, setShowTabDropdown] = useState(false);
     const [filters, setFilters] = useState({
         suitability: "",
         riskLevel: "",
         sustainabilityMin: 0,
     });
 
-    // Close dropdown on click outside or ESC key
+
+
+    // Mock market data
     useEffect(() => {
-        const handleClickOutside = (event: MouseEvent) => {
-            const target = event.target as HTMLElement;
-            if (showTabDropdown && !target.closest("[data-dropdown]")) {
-                setShowTabDropdown(false);
-            }
-        };
-
-        const handleKeyDown = (event: KeyboardEvent) => {
-            if (event.key === "Escape" && showTabDropdown) {
-                setShowTabDropdown(false);
-            }
-        };
-
-        if (showTabDropdown) {
-            document.addEventListener("mousedown", handleClickOutside);
-            document.addEventListener("keydown", handleKeyDown);
-        }
-
-        return () => {
-            document.removeEventListener("mousedown", handleClickOutside);
-            document.removeEventListener("keydown", handleKeyDown);
-        };
-    }, [showTabDropdown]);
-
-    // Mock weather data
-    useEffect(() => {
-        setWeatherData({
-            temperature: 28,
-            humidity: 65,
-            rainfall: 120,
-            forecast: "Partly cloudy with chance of rain",
-        });
-
         setMarketData({
             "Rice (Paddy)": {
                 currentPrice: "₹2,200/quintal",
@@ -199,20 +158,7 @@ const CropAdvisory: React.FC = () => {
         });
     }, []);
 
-    const tabs = [
-        {
-            id: "quick",
-            label: "Quick Advisory",
-            icon: Leaf,
-            desc: "Get instant recommendations",
-        },
-        {
-            id: "calendar",
-            label: "Fasal Calendar",
-            icon: Calendar,
-            desc: "Step-by-step farming plan",
-        },
-    ];
+
 
     const generateFasalCalendar = (cropName: string): FasalCalendar => {
         const baseActivities: CalendarActivity[] = [
@@ -537,77 +483,6 @@ const CropAdvisory: React.FC = () => {
     const QuickAdvisoryTab = useCallback(
         () => (
             <div className="space-y-4 sm:space-y-6">
-                {/* Weather Integration */}
-                {weatherData && (
-                    <div className="bg-gradient-to-r from-blue-50 to-cyan-50 dark:from-blue-900/30 dark:to-cyan-900/30 border border-blue-200 dark:border-blue-700 rounded-lg sm:rounded-xl p-4 sm:p-6 transition-colors duration-200">
-                        <div className="flex items-center justify-between mb-3 sm:mb-4">
-                            <h3 className="text-base sm:text-lg font-semibold text-gray-900 dark:text-white flex items-center transition-colors duration-200">
-                                <Cloud
-                                    className="mr-2 text-blue-600 dark:text-blue-400"
-                                    size={18}
-                                />
-                                <span className="hidden sm:inline">
-                                    Current Weather Conditions
-                                </span>
-                                <span className="sm:hidden">Weather</span>
-                            </h3>
-                            <button className="text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 transition-colors duration-200">
-                                <RefreshCw size={14} />
-                            </button>
-                        </div>
-                        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 sm:gap-4">
-                            <div className="text-center">
-                                <Thermometer
-                                    className="text-orange-500 dark:text-orange-400 mx-auto mb-1 sm:mb-2"
-                                    size={16}
-                                />
-                                <p className="text-xs sm:text-sm text-gray-600 dark:text-dark-300">
-                                    Temperature
-                                </p>
-                                <p className="font-semibold text-gray-900 dark:text-white text-sm sm:text-base">
-                                    {weatherData.temperature}°C
-                                </p>
-                            </div>
-                            <div className="text-center">
-                                <Droplet
-                                    className="text-blue-500 dark:text-blue-400 mx-auto mb-1 sm:mb-2"
-                                    size={16}
-                                />
-                                <p className="text-xs sm:text-sm text-gray-600 dark:text-dark-300">
-                                    Humidity
-                                </p>
-                                <p className="font-semibold text-gray-900 dark:text-white text-sm sm:text-base">
-                                    {weatherData.humidity}%
-                                </p>
-                            </div>
-                            <div className="text-center">
-                                <Cloud
-                                    className="text-gray-500 dark:text-dark-400 mx-auto mb-1 sm:mb-2"
-                                    size={16}
-                                />
-                                <p className="text-xs sm:text-sm text-gray-600 dark:text-dark-300">
-                                    Rainfall
-                                </p>
-                                <p className="font-semibold text-gray-900 dark:text-white text-sm sm:text-base">
-                                    {weatherData.rainfall}mm
-                                </p>
-                            </div>
-                            <div className="text-center">
-                                <Sun
-                                    className="text-yellow-500 dark:text-yellow-400 mx-auto mb-1 sm:mb-2"
-                                    size={16}
-                                />
-                                <p className="text-xs sm:text-sm text-gray-600 dark:text-dark-300">
-                                    Forecast
-                                </p>
-                                <p className="font-semibold text-gray-900 dark:text-white text-xs sm:text-sm">
-                                    Partly Cloudy
-                                </p>
-                            </div>
-                        </div>
-                    </div>
-                )}
-
                 {/* Enhanced Input Form */}
                 <div className="bg-white dark:bg-dark-800 border border-gray-200 dark:border-dark-700 rounded-lg sm:rounded-xl p-4 sm:p-6 shadow-sm transition-colors duration-200">
                     <div className="flex items-center justify-between mb-4 sm:mb-6">
@@ -1828,60 +1703,15 @@ const CropAdvisory: React.FC = () => {
                                 </p>
                             </div>
                         </div>
-                        <div className="flex items-center space-x-2 sm:space-x-3 flex-shrink-0">
-                            <button className="p-2 text-gray-600 dark:text-dark-300 hover:text-gray-900 dark:hover:text-white bg-gray-100 dark:bg-dark-700 hover:bg-gray-200 dark:hover:bg-dark-600 rounded-lg transition-all duration-200 hidden sm:block shadow-sm hover:shadow">
-                                <Users size={18} />
-                            </button>
-                            <button className="px-3 sm:px-5 py-2 sm:py-2.5 bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800 dark:from-green-500 dark:to-green-600 dark:hover:from-green-600 dark:hover:to-green-700 text-white rounded-lg text-xs sm:text-sm font-semibold transition-all duration-300 shadow-md hover:shadow-lg hover:scale-105">
-                                <span className="hidden sm:inline">
-                                    Save Session
-                                </span>
-                                <span className="sm:hidden">Save</span>
-                            </button>
-                        </div>
+
                     </div>
                 </div>
             </div>
 
-            {/* Navigation - Centered Pill Tabs */}
-            <div className="bg-white dark:bg-dark-800 border border-gray-200 dark:border-dark-700 rounded-xl shadow-md hover:shadow-lg transition-all duration-300 mx-3 sm:mx-6 lg:mx-8 mt-4 sm:mt-6">
-                <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
-                    <div className="flex p-1.5 space-x-2 bg-gray-100 dark:bg-dark-700 rounded-xl">
-                        {tabs.map((tab) => {
-                            const Icon = tab.icon;
-                            const isActive = activeTab === tab.id;
-                            return (
-                                <button
-                                    key={tab.id}
-                                    onClick={() =>
-                                        setActiveTab(tab.id as TabType)
-                                    }
-                                    className={`flex-1 flex items-center justify-center space-x-2 py-3 text-sm font-semibold rounded-xl transition-all duration-300 ${
-                                        isActive
-                                            ? "bg-gradient-to-r from-white to-gray-50 dark:from-dark-600 dark:to-dark-500 text-green-700 dark:text-green-300 shadow-md hover:shadow-lg scale-105"
-                                            : "text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white hover:bg-gray-50 dark:hover:bg-dark-600/50 hover:scale-102"
-                                    }`}
-                                >
-                                    <Icon
-                                        size={18}
-                                        className={
-                                            isActive
-                                                ? "text-green-600 dark:text-green-400"
-                                                : ""
-                                        }
-                                    />
-                                    <span>{tab.label}</span>
-                                </button>
-                            );
-                        })}
-                    </div>
-                </div>
-            </div>
 
             {/* Content */}
             <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 py-6 sm:py-10">
-                {activeTab === "quick" && QuickAdvisoryTab()}
-                {activeTab === "calendar" && FasalCalendarTab()}
+                {QuickAdvisoryTab()}
             </div>
         </div>
     );

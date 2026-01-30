@@ -154,6 +154,13 @@ const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
         });
     };
 
+    const getTimeBasedGreeting = (): string => {
+        const hour = new Date().getHours();
+        if (hour < 12) return "Good morning";
+        if (hour < 17) return "Good afternoon";
+        return "Good evening";
+    };
+
     const getActivityIcon = (type: string) => {
         switch (type) {
             case "planting":
@@ -267,11 +274,14 @@ const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
     return (
         <div className="space-y-8">
             {/* Welcome Header */}
-            <div className="text-center mb-2">
-                <h1 className="text-3xl sm:text-4xl font-bold bg-gradient-to-r from-gray-900 via-gray-800 to-gray-900 dark:from-white dark:via-gray-200 dark:to-white bg-clip-text text-transparent mb-3 transition-colors duration-200">
-                    Welcome back, {user?.name || "Farmer"}! 👋
+            <div className="text-center mb-8 animate-fade-in">
+                <p className="text-sm font-medium text-gray-500 dark:text-dark-400 mb-2 tracking-wide uppercase">
+                    {getTimeBasedGreeting()}
+                </p>
+                <h1 className="text-4xl sm:text-5xl font-bold bg-gradient-to-r from-green-600 via-green-500 to-emerald-600 dark:from-green-400 dark:via-green-300 dark:to-emerald-400 bg-clip-text text-transparent mb-3 transition-all duration-300 hover:scale-105">
+                    Welcome back, {user?.name || "Farmer"}!
                 </h1>
-                <p className="text-base sm:text-lg text-gray-600 dark:text-dark-300 transition-colors duration-200">
+                <p className="text-base sm:text-lg text-gray-600 dark:text-dark-300 transition-colors duration-200 max-w-2xl mx-auto">
                     Here's what's happening on your farm today
                 </p>
             </div>
