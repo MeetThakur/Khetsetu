@@ -242,8 +242,8 @@ export const chat = async (req: Request, res: Response) => {
         const startTime = Date.now();
 
         // Call Gemini AI
-        const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
-        logger.info("Calling Gemini API with model: gemini-2.0-flash");
+        const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
+        logger.info("Calling Gemini API with model: gemini-2.5-flash");
 
         const result = await model.generateContent(prompt);
         const response = await result.response;
@@ -261,7 +261,7 @@ export const chat = async (req: Request, res: Response) => {
             data: {
                 response: text,
                 processingTime,
-                model: "gemini-2.0-flash",
+                model: "gemini-2.5-flash",
                 timestamp: new Date().toISOString(),
             },
         });
@@ -355,7 +355,7 @@ export const getCropAdvice = async (req: Request, res: Response) => {
 
         // Call Gemini AI
         const model = genAI.getGenerativeModel({
-            model: "gemini-2.0-flash",
+            model: "gemini-2.5-flash",
             generationConfig: {
                 temperature: 0.2,
                 topK: 40,
@@ -407,7 +407,7 @@ export const getCropAdvice = async (req: Request, res: Response) => {
             },
             recommendations: parsedResponse.recommendations || [],
             aiResponse: {
-                model: "gemini-2.0-flash",
+                model: "gemini-2.5-flash",
                 prompt,
                 rawResponse: text,
                 processingTime,
@@ -488,7 +488,7 @@ export const identifyPest = async (req: Request, res: Response) => {
         const startTime = Date.now();
 
         // Call Gemini AI
-        const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
+        const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
 
         let result;
         if (imageData) {
@@ -611,7 +611,7 @@ export const analyzeSoil = async (req: Request, res: Response) => {
         const startTime = Date.now();
 
         // Call Gemini AI
-        const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
+        const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
         const result = await model.generateContent(prompt);
         const response = await result.response;
         const text = response.text();
@@ -703,7 +703,7 @@ export const getAIStatus = async (req: Request, res: Response) => {
             message: "AI status retrieved successfully",
             data: {
                 status: isConfigured ? "active" : "misconfigured",
-                model: "gemini-2.0-flash",
+                model: "gemini-2.5-flash",
                 capabilities: [
                     "crop_advisory",
                     "pest_identification",
